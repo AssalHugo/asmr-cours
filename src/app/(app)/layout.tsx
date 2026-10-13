@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { AppNav } from "@/components/app-nav";
-import { BreathOrb } from "@/components/breath-orb";
 import { requireUser } from "@/lib/auth";
+import Loading from "./loading";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,16 +21,4 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 async function Protected({ children }: { children: React.ReactNode }) {
   await requireUser();
   return <>{children}</>;
-}
-
-function Loading() {
-  return (
-    <div
-      className="flex min-h-[60vh] items-center justify-center"
-      role="status"
-      aria-label="Chargement"
-    >
-      <BreathOrb size="sm" />
-    </div>
-  );
 }
