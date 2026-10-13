@@ -637,6 +637,8 @@ Réponds uniquement avec le JSON demandé.
 
 ### 9.4 Voice design — presets (`voices-seed`, à créer dans **chaque** projet Gemini)
 
+> Révisé le 2026-10-13 d'après la doc Gemini (voice design) : une voix par mode, une ou deux phrases, traits permanents seulement. Les quatre presets en vigueur sont dans `src/lib/prompts/voice-presets.ts` ; les deux ci-dessous sont ceux d'origine. Le texte d'aperçu fait désormais une vingtaine de secondes.
+
 - **Murmure doux** : `A calm young adult French woman from Paris. Soft, breathy, intimate whisper, very close to the microphone. Slow, warm and reassuring pacing, clear articulation, no vocal fry.`
 - **Murmure grave** : `A calm adult French man. Low, soft, breathy whisper, very close to the microphone. Slow, warm and reassuring, clear articulation, no vocal fry.`
 - Teste aussi ces descriptions rédigées en français, et garde la version qui sonne le mieux.

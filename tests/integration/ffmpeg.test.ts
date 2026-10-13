@@ -5,9 +5,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ambiencePrepareArgs } from "@/lib/audio/ambience-prepare";
 import { renderFfmetadata } from "@/lib/audio/chapters";
 import { probe, runFfmpeg, runFfmpegVerbose } from "@/lib/audio/ffmpeg";
-import { encodeVoiceArgs, masterArgs } from "@/lib/audio/master";
+import { encodeVoiceArgs } from "@/lib/audio/master";
 import { mixArgs, noiseBedArgs } from "@/lib/audio/mix";
-import { concatArgs, concatList, silenceArgs, trimSilenceArgs } from "@/lib/audio/silence";
+import { masterVoice, trimChunk } from "@/lib/audio/render";
+import { concatArgs, concatList, silenceArgs } from "@/lib/audio/silence";
 import { parseWav, pcm16ToWav, sineWav } from "@/lib/audio/wav";
 
 /** Vrai FFmpeg sur une fixture de 10 s (docs/SPEC.md §13). */
@@ -23,13 +24,13 @@ describe("FFmpeg réel", () => {
     dir = await mkdtemp(join(tmpdir(), "murmure-ffmpeg-"));
     await writeFile(file("voice_raw.wav"), sineWav(10_000, { gain: 0.2 }));
     await writeFile(file("chapters.ffmeta"), renderFfmetadata("Fixture", chapters));
-    await runFfmpeg(masterArgs(file("voice_raw.wav"), file("voice_master.wav")));
+    await masterVoice(file("voice_raw.wav"), file("voice_master.wav"));
   });
   afterAll(() => rm(dir, { recursive: true, force: true }));
 
-  it("masterise à 48 kHz mono sans changer la durée, autour de −19 LUFS", async () => {
+  it("masterise à 48 kHz stéréo sans changer la durée, autour de −19 LUFS", async () => {
     const master = await probe(file("voice_master.wav"));
-    expect(master).toMatchObject({ sampleRate: 48_000, channels: 1 });
+    expect(master).toMatchObject({ sampleRate: 48_000, channels: 2 });
     expect(Math.abs(master.durationMs - 10_000)).toBeLessThan(50);
 
     const { stderr } = await runFfmpegVerbose([
@@ -53,7 +54,7 @@ describe("FFmpeg réel", () => {
       encodeVoiceArgs(file("voice_master.wav"), file("chapters.ffmeta"), file("voice.m4a")),
     );
     const voice = await probe(file("voice.m4a"));
-    expect(voice).toMatchObject({ codec: "aac", sampleRate: 48_000, channels: 1 });
+    expect(voice).toMatchObject({ codec: "aac", sampleRate: 48_000, channels: 2 });
     expect(Math.abs(voice.durationMs - 10_000)).toBeLessThan(150);
     expect(voice.chapters).toEqual([
       { title: "Début = intro; suite", startMs: 0, endMs: 4000 },
@@ -86,7 +87,11 @@ describe("FFmpeg réel", () => {
     const tone = sineWav(1000).subarray(44);
     const padded = Buffer.concat([Buffer.alloc(24_000), tone, Buffer.alloc(33_600)]);
     await writeFile(file("padded.wav"), pcm16ToWav(padded, 24_000));
-    await runFfmpeg(trimSilenceArgs(file("padded.wav"), file("trimmed.wav")));
+    const level = await trimChunk(file("padded.wav"), file("trimmed.wav"));
+    // Niveau de la sinusoïde de test, lu sur le chunk rogné.
+    expect(level?.meanDb).toBeGreaterThan(-25);
+    expect(level?.meanDb).toBeLessThan(-19);
+    expect(level?.maxDb).toBeGreaterThan(level?.meanDb ?? 0);
     const trimmed = parseWav(await readFile(file("trimmed.wav")));
     expect(trimmed).toMatchObject({ sampleRate: 24_000, channels: 1, bitsPerSample: 16 });
     // Le son est entier (1 000 ms), avec au plus la marge de 80 ms de chaque côté.
@@ -104,6 +109,31 @@ describe("FFmpeg réel", () => {
     expect(parseWav(await readFile(file("joined.wav"))).durationMs).toBe(
       trimmed.durationMs * 2 + 1500,
     );
+  });
+
+  it("laisse un fond de pièce dans les pauses, là où la voix se tait", async () => {
+    // 1 s de son, 3 s de silence, 1 s de son.
+    const tone = sineWav(1000).subarray(44);
+    const gapped = Buffer.concat([tone, Buffer.alloc(3 * 48_000), tone]);
+    await writeFile(file("gapped.wav"), pcm16ToWav(gapped, 24_000));
+    await masterVoice(file("gapped.wav"), file("gapped_master.wav"));
+    const { stderr } = await runFfmpegVerbose([
+      "-ss",
+      "2",
+      "-t",
+      "1",
+      "-i",
+      file("gapped_master.wav"),
+      "-af",
+      "volumedetect",
+      "-f",
+      "null",
+      "-",
+    ]);
+    const floor = Number(/mean_volume:\s*(-?\d+(?:\.\d+)?) dB/.exec(stderr)?.[1]);
+    // Ni silence numérique (−91 dB), ni souffle audible : autour de −62 dB.
+    expect(floor).toBeGreaterThan(-70);
+    expect(floor).toBeLessThan(-55);
   });
 
   it("prépare une ambiance : boucle sans couture, −28 LUFS, FLAC et AAC", async () => {

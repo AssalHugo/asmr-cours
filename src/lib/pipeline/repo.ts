@@ -22,6 +22,7 @@ export type CoursePatch = Partial<
     | "trigger_run_id"
     | "batch_job_id"
     | "batch_submitted_at"
+    | "chunk_takes"
     | "est_cost_usd"
     | "actual_cost_usd"
     | "duration_ms"

@@ -4,16 +4,19 @@ import { env, triggerEnv } from "@/lib/env";
 import { createPipelineDeps } from "@/lib/pipeline/runtime";
 import type {
   GenerateCoursePayload,
+  RedoChunkPayload,
   RegenerateSectionPayload,
   RemixPayload,
   VoiceSamplePayload,
 } from "@/lib/pipeline/schemas";
 import type { generateCourseTask } from "@/trigger/generate-course";
+import type { redoChunkTask } from "@/trigger/redo-chunk";
 import type { regenerateSectionTask } from "@/trigger/regenerate-section";
 import type { remixTask } from "@/trigger/remix";
 import {
   failCourse,
   generateCourse,
+  redoChunk,
   regenerateSection,
   remixCourse,
   voiceSample,
@@ -23,6 +26,7 @@ import type { voiceSampleTask } from "@/trigger/voice-sample";
 export type Job =
   | { kind: "generate-course"; payload: GenerateCoursePayload }
   | { kind: "regenerate-section"; payload: RegenerateSectionPayload }
+  | { kind: "redo-chunk"; payload: RedoChunkPayload }
   | { kind: "remix"; payload: RemixPayload };
 
 /** Files d'attente du mode inline : une génération à la fois par utilisatrice, comme sous Trigger.dev. */
@@ -37,6 +41,7 @@ async function runInline(job: Job): Promise<void> {
   try {
     if (job.kind === "generate-course") await generateCourse(deps, job.payload);
     else if (job.kind === "regenerate-section") await regenerateSection(deps, job.payload);
+    else if (job.kind === "redo-chunk") await redoChunk(deps, job.payload);
     else await remixCourse(deps, job.payload);
   } catch (error) {
     console.error(`[murmure] ${job.kind} en échec`, error);
@@ -72,7 +77,9 @@ export async function startJob(job: Job): Promise<{ runId: string | null }> {
             job.payload,
             options,
           )
-        : await tasks.trigger<typeof remixTask>("remix", job.payload, options);
+        : job.kind === "redo-chunk"
+          ? await tasks.trigger<typeof redoChunkTask>("redo-chunk", job.payload, options)
+          : await tasks.trigger<typeof remixTask>("remix", job.payload, options);
   return { runId: handle.id };
 }
 

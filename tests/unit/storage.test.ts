@@ -16,7 +16,7 @@ describe("clés de stockage", () => {
     expect(keys.mix(C, "rain")).toBe(`courses/${C}/mix-rain.m4a`);
     expect(keys.chapters(C)).toBe(`courses/${C}/chapters.json`);
     expect(keys.ambienceWeb("pink-noise")).toBe("ambience/web/pink-noise.m4a");
-    expect(keys.voiceSample(C, "whisper")).toBe(`voices/${C}/sample-whisper.wav`);
+    expect(keys.voiceSample(C, "whisper")).toBe(`voices/${C}/sample-whisper-v2.wav`);
     expect(keys.ttsCache("a".repeat(64))).toBe(`tts-cache/${"a".repeat(64)}.wav`);
   });
 

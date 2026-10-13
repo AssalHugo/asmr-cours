@@ -9,9 +9,7 @@ import { fail, VoiceDesignInput, type ActionResult } from "@/lib/course-input";
 import { billingModels, getMonthlySpend, getProfile } from "@/lib/data";
 import { env } from "@/lib/env";
 import { runVoiceSample } from "@/lib/jobs";
-import { TTS_STYLE } from "@/lib/pipeline/chunker";
 import { costUsd } from "@/lib/pricing";
-import { VOICE_PREVIEW_SEGMENTS } from "@/lib/prompts/voice-presets";
 import { keys, PRESIGN_GET_SECONDS, storage } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -85,8 +83,9 @@ export async function previewVoice(
 export type VoiceDraft = { providerVoiceId: string; sample: string | null };
 
 /**
- * Essai de voice design : crée une voix à partir d'une description et renvoie son
- * échantillon. Les essais passent par le modèle TTS standard ; un brouillon non gardé est supprimé.
+ * Essai de voice design : crée une voix à partir d'une description et renvoie l'extrait
+ * brut de Gemini (texte libre, sans mastering). L'aperçu fidèle n'est généré qu'une fois la
+ * voix gardée. Les essais passent par le modèle TTS standard ; un brouillon non gardé est supprimé.
  */
 export async function tryVoiceDesign(
   raw: unknown,
@@ -145,7 +144,7 @@ export async function discardVoiceDraft(providerVoiceId: string): Promise<Action
   return { ok: true };
 }
 
-/** Garde la voix essayée : elle rejoint la liste, avec un échantillon final au modèle standard. */
+/** Garde la voix essayée : elle rejoint la liste, avec un aperçu fidèle au rendu d'un cours. */
 export async function saveDesignedVoice(raw: unknown): Promise<ActionResult<{ voiceId: string }>> {
   const user = await getUser();
   if (!user) return SIGNED_OUT;
@@ -186,30 +185,12 @@ export async function saveDesignedVoice(raw: unknown): Promise<ActionResult<{ vo
     .single();
   if (error) return fail("La voix n'a pas pu être enregistrée.");
 
-  // Échantillon final au modèle standard, stocké pour les écoutes suivantes.
+  // Aperçu fidèle (modèle standard, mastering du cours), stocké pour les écoutes suivantes.
   try {
-    const model = ai.models.tts;
-    const key = keys.voiceSample(voice.id, "whisper");
-    const result = await ai.tts.synthesize({
-      key,
-      text: ai.tts.renderChunkText([...VOICE_PREVIEW_SEGMENTS]),
-      voiceId: parsed.data.providerVoiceId,
-      style: TTS_STYLE.whisper,
-      model,
-    });
-    await storage().put(key, result.wav, "audio/wav");
+    const { key } = await runVoiceSample({ voiceId: voice.id, userId: user.id, mode: "whisper" });
     await admin.from("voices").update({ sample_key: key }).eq("id", voice.id);
-    await admin.from("usage_events").insert({
-      user_id: user.id,
-      step: "voice-sample",
-      model,
-      tier: "standard",
-      input_tokens: result.usage.inputTokens,
-      audio_seconds: Number(result.usage.audioSeconds.toFixed(2)),
-      cost_usd: Number(costUsd(model, "standard", result.usage, new Date()).toFixed(5)),
-    });
   } catch {
-    // La voix est gardée ; l'échantillon sera généré à la première écoute.
+    // La voix est gardée ; l'aperçu sera généré à la première écoute.
   }
   revalidatePath("/voices");
   return { ok: true, data: { voiceId: voice.id } };

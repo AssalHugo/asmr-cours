@@ -13,6 +13,7 @@ export async function designVoice(input: {
   description: string;
   label: string;
   model: string;
+  gender?: "female" | "male";
 }): Promise<DesignedVoice> {
   const voice = await withRetry(
     () =>
@@ -22,6 +23,7 @@ export async function designVoice(input: {
           type: "prompted",
           display_name: input.label,
           language_code: "fr-FR",
+          ...(input.gender ? { gender: input.gender } : {}),
           model: input.model,
           prompted: { input: input.description },
         },

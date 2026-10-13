@@ -33,7 +33,7 @@ flowchart TD
   BU -- oui --> RW[rewriting<br/>script ASMR par section, 3 en parallèle]
   RW --> V[verifying<br/>contrôle de fidélité]
   V -- "écarts, ≤ 2 relances" --> RW
-  V --> C[découpage en chunks<br/>hash = sha256 modèle·voix·style·texte]
+  V --> C[découpage en chunks<br/>hash = sha256 modèle·voix·style·texte·prise]
   C --> K{chunk dans le cache ?}
   K -- oui --> A
   K -- "non, Express" --> ST[synthesizing<br/>appels TTS en parallèle]
@@ -75,6 +75,9 @@ Les étapes reçoivent leurs dépendances (`PipelineDeps` : dépôt, stockage, I
 
 - Un chunk se termine après une pause d'au moins 1 000 ms, en fin de section, ou quand il dépasserait 900 caractères (coupe au segment portant la plus longue pause). Les segments étant des phrases, on ne coupe jamais une phrase.
 - Les pauses longues ne sont pas laissées à la voix : FFmpeg retire les silences de début et de fin de chaque chunk, puis insère un silence de la durée exacte demandée. Les pauses courtes deviennent un espace ou la balise `<short pause>`.
+- Chaque chunk reçoit un fondu de 10 ms à ses deux bords, puis est ramené au niveau médian du cours (4 dB au plus) : chaque appel TTS a son propre niveau.
+- Une synthèse à la durée aberrante (passage tronqué ou parti en roue libre, hors de 5 à 28 caractères par seconde) est refaite une fois. La prise rejetée est facturée par Gemini, donc journalisée.
+- « Refaire un passage » réenregistre un seul chunk sans toucher au script : le numéro de prise entre dans le hash (`courses.chunk_takes`), si bien que le cache ne répond plus et que seul ce passage est payé.
 - Les durées mesurées donnent la position de chaque chunk et de chaque section, d'où `captions.json`, `chapters.json` et les chapitres embarqués dans les fichiers audio.
 
 ### Budget
@@ -117,6 +120,12 @@ Le lecteur ne connaît que des adresses stables, `/api/audio/{cours}/{fichier}`,
 
 Les copies hors-ligne suivent le compte : la déconnexion vide le cache, une page de lecteur qui répond 404 (cours supprimé, partage retiré) emporte ses fichiers, et un nouveau déploiement recharge les pages de lecteur gardées.
 
+### Mastering
+
+- Timbre (passe-haut, de-esser, compresseur, chaleur), puis mise au niveau en deux passes : `loudnorm` mesure la piste, puis applique un gain fixe. En une passe, il ajuste le gain au fil de l'eau et pompe sur du chuchoté.
+- La voix sort en stéréo, avec un balancement lent et discret d'une oreille à l'autre (`MASTER.stereoDrift`), sur un fond de pièce continu à −62 dB (`MASTER.roomToneDb`) : sans lui, chaque pause tombe au silence numérique. Les deux se coupent en mettant la constante à `null` dans `src/lib/audio/master.ts`.
+- L'aperçu d'une voix dans le Studio passe par la même chaîne, au modèle standard.
+
 ## Machine Trigger.dev
 
 Mesure du 13 octobre 2026 (`scripts/bench-pipeline.ts`, mode mock, vrai FFmpeg, 81 minutes d'audio en 448 chunks) :
@@ -128,4 +137,4 @@ Mesure du 13 octobre 2026 (`scripts/bench-pipeline.ts`, mode mock, vrai FFmpeg, 
 | Disque temporaire au pic                    | 1,2 Go                                   |
 | Rendus                                      | voix 50 Mo, pré-mix 76 Mo                |
 
-Le mastering est mono-thread et le pipeline travaille sur disque. `small-2x` (1 vCPU, 1 Go) est la plus petite machine qui garde de la marge mémoire ; elle est fixée dans `src/trigger/shared.ts`. Cette mesure est locale : le temps réel sur Trigger.dev reste à relever sur un premier vrai cours.
+Le mastering est mono-thread et le pipeline travaille sur disque. `small-2x` (1 vCPU, 1 Go) est la plus petite machine qui garde de la marge mémoire ; elle est fixée dans `src/trigger/shared.ts`. Cette mesure est locale et date d'avant le mastering en deux passes, qui prend environ 2,4 fois plus de temps (13 s contre 5 s pour 5 minutes d'audio) : le temps réel sur Trigger.dev reste à relever sur un premier vrai cours.

@@ -81,8 +81,8 @@ describe("format Gemini", () => {
     expect(() => toWav(Buffer.from("ID3"), "audio/mp3")).toThrow(/inattendu/);
   });
 
-  it("écrit une ligne de batch avec la voix et le préfixe de chuchotement", () => {
-    const item = { key: "c1", model: "m", text: "Bonjour.", style: "whispering" };
+  it("écrit une ligne de batch avec la voix, et le texte tel qu'il a été balisé", () => {
+    const item = { key: "c1", model: "m", text: "<whispers> Bonjour.", style: "" };
     const custom = JSON.parse(batchRequestLine({ ...item, voiceId: "voice_abc123" }));
     expect(custom.key).toBe("c1");
     expect(custom.request.contents[0].parts[0].text).toBe("<whispers> Bonjour.");
@@ -94,11 +94,6 @@ describe("format Gemini", () => {
       prebuilt_voice_config: { voice_name: "Achernar" },
     });
     expect(JSON.stringify(custom)).not.toContain('"speech_metadata"');
-
-    const soft = JSON.parse(
-      batchRequestLine({ ...item, voiceId: "Achernar", style: "soft and calm" }),
-    );
-    expect(soft.request.contents[0].parts[0].text).toBe("Bonjour.");
   });
 
   it("décode une ligne de résultat batch, et ignore un échec", () => {

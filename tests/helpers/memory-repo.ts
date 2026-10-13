@@ -184,6 +184,7 @@ export function makeCourse(
     trigger_run_id: null,
     batch_job_id: null,
     batch_submitted_at: null,
+    chunk_takes: {},
     est_cost_usd: null,
     actual_cost_usd: 0,
     duration_ms: null,

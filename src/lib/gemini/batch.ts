@@ -16,7 +16,8 @@ import { batchAudioUsage } from "./usage";
  *
  * Le Batch API parle le format generateContent, pas Interactions : la voix passe par
  * `speechConfig.voiceConfig`, mais le style par tour (`speech_metadata`) n'y est PAS
- * exprimable. En mode Éco, le timbre repose donc sur la voix designée seule (§8.5).
+ * exprimable. Le texte d'un cours Éco arrive donc déjà balisé (`ttsDelivery`), et le
+ * `style` des requêtes est ignoré ici (§8.5).
  * Entrée et sortie passent par des fichiers JSONL : une heure d'audio en réponses
  * inline ne tiendrait pas en mémoire.
  */
@@ -39,18 +40,11 @@ function voiceConfig(voiceId: string) {
     : { voice: voiceId };
 }
 
-export function formatBatchText(text: string, style?: string): string {
-  if (style === "whispering" && !text.includes("<whispers>") && !text.includes("<whispering>")) {
-    return `<whispers> ${text}`;
-  }
-  return text;
-}
-
 export function batchRequestLine(item: BatchItem): string {
   return JSON.stringify({
     key: item.key,
     request: {
-      contents: [{ role: "user", parts: [{ text: formatBatchText(item.text, item.style) }] }],
+      contents: [{ role: "user", parts: [{ text: item.text }] }],
       generation_config: {
         response_modalities: ["AUDIO"],
         speech_config: { voice_config: toSnake(voiceConfig(item.voiceId)) },

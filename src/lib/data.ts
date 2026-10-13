@@ -16,7 +16,7 @@ const COURSE_COLUMNS =
   "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
 export type Course = Omit<
   Tables["courses"]["Row"],
-  "source_keys" | "trigger_run_id" | "batch_job_id" | "batch_submitted_at"
+  "source_keys" | "trigger_run_id" | "batch_job_id" | "batch_submitted_at" | "chunk_takes"
 >;
 export type Section = Tables["sections"]["Row"];
 export type Voice = Tables["voices"]["Row"];
@@ -117,6 +117,24 @@ export async function listSections(courseId: string): Promise<Section[]> {
     .eq("course_id", courseId)
     .order("idx");
   return data ?? [];
+}
+
+export type Passage = Pick<Tables["chunks"]["Row"], "id" | "section_id" | "caption" | "start_ms">;
+
+/** Passages d'un cours, dans l'ordre, pour en refaire un. Lus par pages de 1 000 lignes. */
+export async function listPassages(courseId: string): Promise<Passage[]> {
+  const supabase = await createClient();
+  const passages: Passage[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from("chunks")
+      .select("id, section_id, caption, start_ms")
+      .eq("course_id", courseId)
+      .order("idx")
+      .range(from, from + 999);
+    passages.push(...(data ?? []));
+    if (!data || data.length < 1000) return passages;
+  }
 }
 
 export async function listRenders(courseId: string): Promise<Render[]> {

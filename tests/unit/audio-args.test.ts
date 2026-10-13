@@ -1,23 +1,109 @@
 import { describe, expect, it } from "vitest";
 import { buildChapters, buildTimeline, renderFfmetadata } from "@/lib/audio/chapters";
-import { encodeVoiceArgs, masterArgs, masterFilter } from "@/lib/audio/master";
+import {
+  encodeVoiceArgs,
+  masterArgs,
+  masterFilter,
+  masterGraph,
+  measureLoudnessArgs,
+  parseLoudness,
+} from "@/lib/audio/master";
 import { mixArgs, mixFilter } from "@/lib/audio/mix";
-import { concatList, silenceArgs, trimSilenceArgs } from "@/lib/audio/silence";
+import {
+  concatList,
+  levelGainsDb,
+  parseVolume,
+  silenceArgs,
+  trimSilenceArgs,
+} from "@/lib/audio/silence";
 
 describe("arguments FFmpeg", () => {
-  it("construit la chaîne de mastering de la spec", () => {
-    expect(masterFilter()).toBe(
-      "highpass=f=70,deesser=i=0.4,acompressor=threshold=-24dB:ratio=2:attack=15:release=200,equalizer=f=160:t=q:w=1:g=1.5,loudnorm=I=-19:TP=-2:LRA=7,aresample=48000",
-    );
+  const TONE =
+    "highpass=f=70,deesser=i=0.4,acompressor=threshold=-24dB:ratio=2:attack=15:release=200,equalizer=f=160:t=q:w=1:g=1.5";
+  const DRIFT =
+    "aformat=channel_layouts=stereo,apulsator=mode=sine:hz=0.04:amount=0.25:offset_l=0:offset_r=0.5";
+
+  it("construit la chaîne de mastering : timbre, balancement stéréo, niveau, 48 kHz", () => {
+    expect(masterFilter()).toBe(`${TONE},loudnorm=I=-19:TP=-2:LRA=7,aresample=48000,${DRIFT}`);
     expect(masterArgs("in.wav", "out.wav")).toEqual([
       "-i",
       "in.wav",
-      "-af",
-      masterFilter(),
+      "-filter_complex",
+      masterGraph(),
+      "-map",
+      "[out]",
       "-ac",
-      "1",
+      "2",
       "out.wav",
     ]);
+  });
+
+  it("pose la voix sur un fond de pièce, deux bruits indépendants en stéréo", () => {
+    expect(masterGraph()).toBe(
+      `[0:a]${masterFilter()}[v];` +
+        "anoisesrc=color=pink:r=48000:a=1:seed=7[nl];anoisesrc=color=pink:r=48000:a=1:seed=11[nr];" +
+        "[nl][nr]amerge=inputs=2,volume=-47.7dB[bed];" +
+        "[v][bed]amix=inputs=2:duration=first:normalize=0[out]",
+    );
+  });
+
+  it("mesure la sonie en première passe, puis applique un gain fixe", () => {
+    expect(measureLoudnessArgs("in.wav")).toEqual([
+      "-i",
+      "in.wav",
+      "-af",
+      `${TONE},loudnorm=I=-19:TP=-2:LRA=7:print_format=json`,
+      "-f",
+      "null",
+      "-",
+    ]);
+    const report = [
+      "[Parsed_loudnorm_3 @ 0x1]",
+      "{",
+      '"input_i" : "-27.50",',
+      '"input_tp" : "-9.10",',
+      '"input_lra" : "11.20",',
+      '"input_thresh" : "-38.00",',
+      '"normalization_type" : "dynamic",',
+      '"target_offset" : "0.30"',
+      "}",
+    ].join("\n");
+    const measure = parseLoudness(report);
+    expect(measure).toEqual({
+      inputI: -27.5,
+      inputTp: -9.1,
+      inputLra: 11.2,
+      inputThresh: -38,
+      targetOffset: 0.3,
+    });
+    // La plage visée s'élargit jusqu'à la plage mesurée, pour rester en gain fixe.
+    expect(masterFilter(measure ?? undefined)).toContain(
+      "loudnorm=I=-19:TP=-2:LRA=12:measured_I=-27.5:measured_TP=-9.1:measured_LRA=11.2:measured_thresh=-38:offset=0.3:linear=true",
+    );
+    // Piste muette ou rapport absent : pas de mesure, donc une seule passe.
+    expect(parseLoudness('{ "input_i" : "-inf", "input_tp" : "-inf" }')).toBeNull();
+    expect(parseLoudness("rien")).toBeNull();
+  });
+
+  it("ramène chaque chunk vers le niveau médian, sans excès ni écrêtage", () => {
+    expect(parseVolume("mean_volume: -27.4 dB\nmax_volume: -9.0 dB")).toEqual({
+      meanDb: -27.4,
+      maxDb: -9,
+    });
+    expect(parseVolume("")).toBeNull();
+    const level = (meanDb: number, maxDb = -12) => ({ meanDb, maxDb });
+    // Médiane : −27,2 dB.
+    expect(
+      levelGainsDb([level(-30), level(-27), level(-27.2), level(-20), level(-29, -1.2), null]),
+    ).toEqual([
+      2.8,
+      0, // écart inaudible
+      0,
+      -4, // borné
+      0, // remonter écrêterait
+      0, // chunk muet
+    ]);
+    expect(levelGainsDb([null, null])).toEqual([0, 0]);
   });
 
   it("encode la voix en AAC 96k faststart avec les chapitres", () => {
@@ -28,7 +114,7 @@ describe("arguments FFmpeg", () => {
 
   it("cale le fondu final du pré-mix 12 s avant la fin", () => {
     expect(mixFilter(-4, 600_000)).toBe(
-      "[0:a]pan=stereo|c0=c0|c1=c0[v];[1:a]volume=-4.0dB,afade=t=in:d=8[bg];[v][bg]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=588.000:d=12[out]",
+      "[0:a]aformat=channel_layouts=stereo[v];[1:a]volume=-4.0dB,afade=t=in:d=8[bg];[v][bg]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=588.000:d=12[out]",
     );
     expect(mixFilter(0, 5000)).toContain("afade=t=out:st=0.000:d=12");
     const args = mixArgs({
