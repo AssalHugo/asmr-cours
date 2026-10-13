@@ -20,11 +20,13 @@
     "r2:cors": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/r2-cors.ts",
     "ambience:prepare": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ambience-prepare.ts",
     "ambience:upload": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ambience-upload.ts",
-    "voices:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/voices-seed.ts"
+    "voices:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/voices-seed.ts",
+    "gemini:smoke": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/gemini-smoke.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",
     "@aws-sdk/s3-request-presigner": "^3.1149.0",
+    "@google/genai": "^2.28.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "class-variance-authority": "^0.7.1",

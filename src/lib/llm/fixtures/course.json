@@ -1,0 +1,60 @@
+{
+  "title": "La mémoire : encodage, stockage, récupération",
+  "language": "fr",
+  "sections": [
+    {
+      "title": "Les trois étapes de la mémoire",
+      "content": "La mémoire est la capacité à encoder, stocker et récupérer une information. L'encodage transforme une perception en trace mnésique. Le stockage maintient cette trace dans le temps. La récupération permet d'y accéder à nouveau, par rappel ou par reconnaissance. Ces trois étapes sont distinctes : un oubli peut venir d'un encodage superficiel, d'une trace qui s'efface, ou d'un indice de récupération absent. Le modèle modal d'Atkinson et Shiffrin, proposé en 1968, décrit trois registres successifs. Le registre sensoriel garde l'information moins d'une seconde pour la vision. La mémoire à court terme la conserve environ vingt secondes sans répétition. La mémoire à long terme la conserve durablement, sans limite de capacité connue. Le passage d'un registre à l'autre dépend de l'attention, puis de la répétition. George Miller a montré en 1956 que la mémoire à court terme contient environ sept éléments, plus ou moins deux. On appelle cette limite l'empan mnésique. Regrouper les éléments en ensembles porteurs de sens, ce que l'on nomme le chunking, permet d'en retenir davantage. Un numéro de téléphone découpé en paires se retient ainsi mieux qu'une suite de dix chiffres isolés. L'attention joue le rôle de filtre : ce qui n'est pas remarqué n'atteint jamais la mémoire à court terme. La répétition de maintien garde l'information active, tandis que la répétition d'élaboration la relie à ce que l'on sait déjà. Seule la seconde favorise vraiment un souvenir durable. C'est pourquoi relire passivement un cours donne une impression de maîtrise, sans construire de trace solide. Comprendre à quelle étape un souvenir se perd aide à choisir la bonne méthode de révision.",
+      "keyTerms": [
+        "encodage",
+        "stockage",
+        "récupération",
+        "empan mnésique",
+        "chunking",
+        "modèle modal"
+      ],
+      "keyFacts": [
+        "La mémoire comporte trois étapes : encodage, stockage, récupération.",
+        "Le modèle modal d'Atkinson et Shiffrin date de 1968.",
+        "La mémoire à court terme conserve l'information environ vingt secondes sans répétition.",
+        "L'empan mnésique est d'environ sept éléments, plus ou moins deux, selon Miller en 1956."
+      ]
+    },
+    {
+      "title": "La courbe de l'oubli et la répétition espacée",
+      "content": "Hermann Ebbinghaus a mesuré en 1885 la vitesse à laquelle on oublie des syllabes sans signification. Sa courbe de l'oubli montre une perte rapide au début, puis de plus en plus lente. Selon ses mesures, plus de la moitié du contenu est perdue en une heure, et environ les deux tiers au bout d'une journée. Chaque révision ralentit cet oubli : la courbe devient moins abrupte après chaque rappel. L'effet d'espacement désigne le fait qu'un même temps d'étude est plus efficace réparti sur plusieurs séances que concentré en une seule. Réviser un jour, puis trois jours, puis une semaine après, consolide mieux qu'une longue séance la veille. L'effet de test complète ce principe : se poser des questions et tenter de retrouver la réponse renforce davantage la trace que relire le cours. On parle de récupération active. L'effort fourni pour retrouver une information est précisément ce qui la consolide, même quand la réponse vient difficilement. Cet effort porte un nom : la difficulté désirable. Une révision qui semble facile est souvent peu efficace, car elle ne sollicite pas la récupération. Les erreurs commises pendant un test ne sont pas un problème, à condition d'être corrigées juste après. En pratique, il vaut mieux fermer son cours et réciter ce que l'on sait, puis vérifier. Les intervalles peuvent s'allonger dès que le rappel devient aisé, et se raccourcir quand il échoue. Quelques minutes par séance suffisent, pourvu que les séances reviennent régulièrement. La répétition espacée combinée à la récupération active forme la méthode de révision la mieux établie par la recherche.",
+      "keyTerms": [
+        "courbe de l'oubli",
+        "effet d'espacement",
+        "effet de test",
+        "récupération active",
+        "difficulté désirable"
+      ],
+      "keyFacts": [
+        "Ebbinghaus a décrit la courbe de l'oubli en 1885.",
+        "Plus de la moitié du contenu est perdue en une heure selon ses mesures.",
+        "L'effet d'espacement : un même temps d'étude est plus efficace réparti sur plusieurs séances.",
+        "L'effet de test : tenter de retrouver la réponse renforce davantage la trace que relire."
+      ]
+    },
+    {
+      "title": "Sommeil et consolidation",
+      "content": "La consolidation est le processus qui stabilise un souvenir après son encodage. Elle se poursuit pendant des heures, et une grande partie se déroule durant le sommeil. L'hippocampe joue un rôle central : il enregistre d'abord les souvenirs récents, puis les rejoue pendant la nuit. Ce rejeu transfère progressivement l'information vers le cortex, où elle est stockée à long terme. Le sommeil lent profond favorise surtout la mémoire déclarative, celle des faits et des connaissances. Le sommeil paradoxal soutient davantage la mémoire procédurale, celle des gestes et des savoir-faire. Une nuit complète comprend quatre à six cycles d'environ quatre-vingt-dix minutes chacun. Le sommeil lent profond domine en début de nuit, le sommeil paradoxal en fin de nuit. Réduire sa nuit ampute donc l'une ou l'autre de ces phases. Une privation de sommeil avant un apprentissage diminue aussi la capacité d'encodage le lendemain. Réviser peu avant de dormir est favorable, car le contenu est rejoué sans interférence d'autres activités. L'interférence désigne la gêne causée par un apprentissage sur un autre, proche dans le temps. Elle est rétroactive quand le nouveau perturbe l'ancien, et proactive dans le cas inverse. Une courte sieste après une séance d'étude apporte déjà un bénéfice mesurable. Veiller toute une nuit pour réviser est donc contre-productif : le contenu appris est mal consolidé, et l'examen se passe avec une attention affaiblie. Dormir fait pleinement partie de la révision, au même titre que la séance elle-même.",
+      "keyTerms": [
+        "consolidation",
+        "hippocampe",
+        "sommeil lent profond",
+        "sommeil paradoxal",
+        "mémoire déclarative",
+        "mémoire procédurale",
+        "interférence"
+      ],
+      "keyFacts": [
+        "La consolidation stabilise un souvenir après son encodage, en grande partie pendant le sommeil.",
+        "L'hippocampe rejoue les souvenirs récents et les transfère vers le cortex.",
+        "Le sommeil lent profond favorise la mémoire déclarative, le sommeil paradoxal la mémoire procédurale.",
+        "Une nuit comprend quatre à six cycles d'environ quatre-vingt-dix minutes."
+      ]
+    }
+  ]
+}
