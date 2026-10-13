@@ -17,8 +17,9 @@ const origin = (value: string | undefined): string | null => {
 function contentSecurityPolicy(): string {
   const dev = process.env.NODE_ENV !== "production";
   const supabase = origin(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  // Le SDK S3 signe en « virtual-hosted » : le bucket préfixe l'hôte du compte.
   const r2 = process.env.R2_ACCOUNT_ID
-    ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+    ? `https://${process.env.R2_BUCKET || "murmure-audio"}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
     : "https://*.r2.cloudflarestorage.com";
   const trigger = origin(process.env.TRIGGER_API_URL) ?? "https://api.trigger.dev";
   const connect = [
