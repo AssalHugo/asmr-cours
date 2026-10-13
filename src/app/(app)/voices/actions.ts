@@ -82,7 +82,7 @@ export async function tryVoiceDesign(
     await ai.voices.remove(previousDraftId).catch(() => undefined);
   }
   try {
-    const model = ai.models.ttsLite;
+    const model = ai.models.tts;
     const draft = await ai.voices.design({
       description: parsed.data.description,
       label: `Brouillon ${new Date().toISOString().slice(0, 16)}`,
@@ -111,7 +111,8 @@ export async function tryVoiceDesign(
           : null,
       },
     };
-  } catch {
+  } catch (error) {
+    console.error("Échec de tryVoiceDesign :", error);
     return fail("Gemini n'a pas pu créer cette voix. Reformule la description et réessaie.");
   }
 }

@@ -46,19 +46,24 @@ export type JsonRequest<T> = {
 export async function generateJson<T>(
   req: JsonRequest<T>,
 ): Promise<{ data: T; usage: BillableUsage }> {
-  const interaction = await withRetry(() =>
-    gemini().interactions.create({
-      model: req.model,
-      system_instruction: req.system,
-      input: req.input,
-      response_format: {
-        type: "text",
-        mime_type: "application/json",
-        schema: geminiJsonSchema(req.schema),
-      },
-      generation_config: { thinking_level: minThinkingLevel(req.model) },
-      store: false,
-    }),
+  const interaction = await withRetry(
+    () =>
+      gemini().interactions.create(
+        {
+          model: req.model,
+          system_instruction: req.system,
+          input: req.input,
+          response_format: {
+            type: "text",
+            mime_type: "application/json",
+            schema: geminiJsonSchema(req.schema),
+          },
+          generation_config: { thinking_level: minThinkingLevel(req.model) },
+          store: false,
+        },
+        { retries: { strategy: "none" } },
+      ),
+    { label: req.model },
   );
   const usage = textUsage(interaction.usage);
   if (interaction.status !== "completed" || !interaction.output_text) {

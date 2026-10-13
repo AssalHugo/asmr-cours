@@ -14,17 +14,19 @@ export async function designVoice(input: {
   label: string;
   model: string;
 }): Promise<DesignedVoice> {
-  const voice = await withRetry(() =>
-    gemini().voices.create({
-      store: true,
-      voice: {
-        type: "prompted",
-        display_name: input.label,
-        language_code: "fr-FR",
-        model: input.model,
-        prompted: { input: input.description },
-      },
-    }),
+  const voice = await withRetry(
+    () =>
+      gemini().voices.create({
+        store: true,
+        voice: {
+          type: "prompted",
+          display_name: input.label,
+          language_code: "fr-FR",
+          model: input.model,
+          prompted: { input: input.description },
+        },
+      }),
+    { label: "voice-design" },
   );
   if (!voice.id) throw new Error("Gemini n'a pas renvoyé d'identifiant de voix.");
   const sample = voice.sample_audio;

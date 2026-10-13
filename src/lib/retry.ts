@@ -6,6 +6,12 @@ export type RetryOptions = {
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
   shouldRetry?: (error: unknown) => boolean;
+  /** Appelé avant chaque pause et nouvel essai. */
+  onRetry?: (error: unknown, attempt: number, delayMs: number) => void;
+  /** Libellé optionnel de l'opération (pour les logs). */
+  label?: string;
+  /** Activer ou désactiver explicitement les logs lors des réessais. */
+  logRetry?: boolean;
 };
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -60,7 +66,22 @@ export async function withRetry<T>(fn: (attempt: number) => Promise<T>, opts: Re
     } catch (error) {
       if (attempt >= tries || !shouldRetry(error)) throw error;
       const backoff = Math.min(maxMs, baseMs * 2 ** (attempt - 1)) * (0.5 + random() / 2);
-      await sleep(Math.min(maxMs, Math.max(backoff, retryAfterMs(error) ?? 0)));
+      const delayMs = Math.min(maxMs, Math.max(backoff, retryAfterMs(error) ?? 0));
+
+      if (opts.onRetry) {
+        opts.onRetry(error, attempt, delayMs);
+      } else if (opts.logRetry ?? (process.env.NODE_ENV !== "test")) {
+        const status = httpStatus(error);
+        const statusStr = status ? ` HTTP ${status}` : "";
+        const tag = opts.label ? `[${opts.label}] ` : "";
+        const msg = error instanceof Error ? error.message : String(error);
+        const delaySec = Math.max(1, Math.round(delayMs / 1000));
+        console.warn(
+          `  ↳ ⚠️  ${tag}Tentative ${attempt}/${tries} échouée${statusStr} (${msg}) — nouvel essai dans ${delaySec}s...`,
+        );
+      }
+
+      await sleep(delayMs);
     }
   }
 }

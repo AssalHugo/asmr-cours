@@ -31,25 +31,30 @@ export function toWav(data: Buffer, mimeType: string | undefined): Buffer {
  * l'annotation `speech_metadata`, jamais dans le texte. Sortie : WAV 24 kHz mono 16 bits.
  */
 export async function synthesizeSpeech(req: SpeechRequest): Promise<SpeechResult> {
-  const interaction = await withRetry(() =>
-    gemini().interactions.create({
-      model: req.model,
-      input: [
+  const interaction = await withRetry(
+    () =>
+      gemini().interactions.create(
         {
-          type: "user_input",
-          content: [
+          model: req.model,
+          input: [
             {
-              type: "text",
-              text: req.text,
-              annotations: [{ type: "speech_metadata", style: req.style }],
+              type: "user_input",
+              content: [
+                {
+                  type: "text",
+                  text: req.text,
+                  annotations: [{ type: "speech_metadata", style: req.style }],
+                },
+              ],
             },
           ],
+          response_format: { type: "audio", mime_type: "audio/wav", sample_rate: DEFAULT_SAMPLE_RATE },
+          generation_config: { speech_config: [{ voice: req.voiceId }] },
+          store: false,
         },
-      ],
-      response_format: { type: "audio", mime_type: "audio/wav", sample_rate: DEFAULT_SAMPLE_RATE },
-      generation_config: { speech_config: [{ voice: req.voiceId }] },
-      store: false,
-    }),
+        { retries: { strategy: "none" } },
+      ),
+    { label: req.model },
   );
   const audio = interaction.output_audio;
   if (interaction.status !== "completed" || !audio?.data) {

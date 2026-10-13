@@ -70,6 +70,27 @@ describe("withRetry", () => {
     expect(retryAfterMs({ headers: { "retry-after": "2" } })).toBe(2000);
   });
 
+  it("appelle onRetry lors de chaque réessai", async () => {
+    const retries: { attempt: number; delayMs: number }[] = [];
+    let calls = 0;
+    await withRetry(
+      async () => {
+        if (++calls < 3) throw Object.assign(new Error("temporaire"), { status: 503 });
+        return "ok";
+      },
+      {
+        sleep: async () => {},
+        random: () => 0.5,
+        onRetry: (_err, attempt, delayMs) => {
+          retries.push({ attempt, delayMs });
+        },
+      },
+    );
+    expect(retries).toHaveLength(2);
+    expect(retries[0]?.attempt).toBe(1);
+    expect(retries[1]?.attempt).toBe(2);
+  });
+
   it("borne la concurrence de mapLimit et garde l'ordre", async () => {
     let active = 0;
     let peak = 0;
