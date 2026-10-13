@@ -14,6 +14,8 @@ export async function uploadFiles(
   files: File[],
   onProgress: (progress: UploadProgress) => void,
   signal?: AbortSignal,
+  /** Dépôt précédent du même brouillon, que le serveur efface. */
+  replaces?: string,
 ): Promise<UploadResult> {
   const res = await fetch("/api/uploads/presign", {
     method: "POST",
@@ -21,6 +23,7 @@ export async function uploadFiles(
     body: JSON.stringify({
       kind,
       files: files.map((f) => ({ type: f.type, size: f.size })),
+      replaces,
     } satisfies PresignRequest),
     signal,
   });

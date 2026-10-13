@@ -157,6 +157,25 @@ export type Database = {
           },
         ];
       };
+      course_launches: {
+        Row: {
+          created_at: string;
+          id: number;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: never;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: never;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       course_shares: {
         Row: {
           course_id: string;
@@ -463,6 +482,14 @@ export type Database = {
       };
     };
     Views: {
+      course_costs: {
+        Row: {
+          cost_usd: number | null;
+          course_id: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
       monthly_spend: {
         Row: {
           month: string | null;
@@ -474,7 +501,14 @@ export type Database = {
       };
     };
     Functions: {
-      [_ in never]: never;
+      course_cost: {
+        Args: { p_course_id: string };
+        Returns: number;
+      };
+      spend_since: {
+        Args: { p_since: string; p_user_id?: string };
+        Returns: number;
+      };
     };
     Enums: {
       course_status:

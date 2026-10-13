@@ -16,7 +16,11 @@ export function createPipelineDeps(host: Pick<PipelineDeps, "wait" | "report">):
     storage: storage(),
     ai,
     appEnv: e.APP_ENV,
-    limits: { ttsConcurrency: e.TTS_STANDARD_CONCURRENCY, maxSourceChars: e.MAX_SOURCE_CHARS },
+    limits: {
+      ttsConcurrency: e.TTS_STANDARD_CONCURRENCY,
+      maxSourceChars: e.MAX_SOURCE_CHARS,
+      globalBudgetUsd: e.GLOBAL_MONTHLY_BUDGET_USD,
+    },
     now: () => new Date(),
     workdir: withWorkdir,
     // Le batch factice répond au deuxième sondage : inutile de patienter 3 min en mock.

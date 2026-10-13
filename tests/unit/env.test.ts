@@ -22,6 +22,24 @@ describe("env", () => {
     expect(() => parseServerEnv({ MAX_UPLOAD_MB: "-1" })).toThrow();
   });
 
+  it("interdit les modes sans clés en production", () => {
+    expect(() => parseServerEnv({ APP_ENV: "prod", STORAGE_MODE: "local" })).toThrow(
+      /STORAGE_MODE=local/,
+    );
+    expect(() => parseServerEnv({ APP_ENV: "prod", AI_MODE: "mock" })).toThrow(/AI_MODE=mock/);
+    expect(() => parseServerEnv({ APP_ENV: "prod", JOBS_MODE: "inline" })).toThrow(/JOBS_MODE/);
+    expect(parseServerEnv({ APP_ENV: "prod" }).STORAGE_MODE).toBe("r2");
+    expect(parseServerEnv({ APP_ENV: "dev", STORAGE_MODE: "local" }).STORAGE_MODE).toBe("local");
+  });
+
+  it("lit le plafond global, absent par défaut", () => {
+    expect(parseServerEnv({}).GLOBAL_MONTHLY_BUDGET_USD).toBeUndefined();
+    expect(parseServerEnv({ GLOBAL_MONTHLY_BUDGET_USD: "" }).GLOBAL_MONTHLY_BUDGET_USD).toBe(
+      undefined,
+    );
+    expect(parseServerEnv({ GLOBAL_MONTHLY_BUDGET_USD: "40" }).GLOBAL_MONTHLY_BUDGET_USD).toBe(40);
+  });
+
   it("signale les clés manquantes d'un service", () => {
     const env = parseServerEnv({ R2_ACCOUNT_ID: "abc" });
     expect(() => requireKeys(env, "R2", ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID"] as const)).toThrow(

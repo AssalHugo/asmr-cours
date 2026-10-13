@@ -67,6 +67,7 @@ En mode Éco, le style par tour (« whispering ») n'est pas exprimable dans une
 3. **Authentication → URL Configuration** : _Site URL_ = l'adresse de prod (ex. `https://murmure.vercel.app`). Dans _Redirect URLs_, ajoute `https://<ton-domaine>/auth/confirm` et `http://localhost:3000/auth/confirm`.
 4. **Authentication → Emails → Magic Link** et **Confirm signup** : remplace le corps des deux modèles par celui de `supabase/templates/magic_link.html`. Le lien doit pointer vers `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` : c'est ce qui permet d'ouvrir le lien sur un autre appareil que celui qui l'a demandé.
 5. Renseigne `ALLOWED_EMAILS` (adresses séparées par des virgules). Une liste vide ne laisse entrer personne.
+6. **Authentication → Sign In / Providers** : désactive **Allow new users to sign up** et laisse **Confirm email** activé. C'est ce réglage qui rend l'allowlist étanche : l'app crée elle-même le compte d'une adresse invitée (avec la clé secrète) au moment d'envoyer son premier lien. Inscriptions ouvertes, n'importe qui pourrait se créer une session en appelant l'API Supabase avec la clé publique.
 
 L'envoi d'emails intégré à Supabase est limité à quelques messages par heure : suffisant pour deux personnes.
 
@@ -109,6 +110,7 @@ L'envoi d'emails intégré à Supabase est limité à quelques messages par heur
    | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SECRET_KEY`                        | celles de l'étape 2                 |
    | `GEMINI_API_KEY`                                                         | la clé **prod**                     |
    | `GEMINI_MODEL_*`                                                         | seulement si tu changes les défauts |
+   | `GLOBAL_MONTHLY_BUDGET_USD`                                              | plafond tous comptes, si tu en veux |
    | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | celles de l'étape 3                 |
    | `TTS_STANDARD_CONCURRENCY`, `MAX_SOURCE_CHARS`                           | seulement si tu changes les défauts |
 

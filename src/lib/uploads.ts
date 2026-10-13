@@ -25,6 +25,8 @@ export const PresignRequest = z.object({
     )
     .min(1)
     .max(MAX_IMAGES),
+  /** Dépôt précédent du même brouillon : ses fichiers sont effacés s'il n'a donné aucun cours. */
+  replaces: z.uuid().optional(),
 });
 export type PresignRequest = z.infer<typeof PresignRequest>;
 

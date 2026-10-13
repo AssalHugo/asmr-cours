@@ -1,11 +1,11 @@
-import { LogOut, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { BudgetGauge } from "@/components/budget/budget-gauge";
 import { OfflineStorage } from "@/components/offline-storage";
 import { PageHeader } from "@/components/page-header";
 import { SettingsForm } from "@/components/settings-form";
+import { SignOutForm } from "@/components/sign-out-form";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
 import {
   billingModels,
@@ -150,12 +150,7 @@ export default async function SettingsPage() {
 
       <section className="space-y-3">
         <p className="text-muted-foreground text-sm">Connectée en tant que {user.email}</p>
-        <form action="/auth/signout" method="post">
-          <Button type="submit" variant="ghost" className="-ml-4">
-            <LogOut aria-hidden />
-            Se déconnecter
-          </Button>
-        </form>
+        <SignOutForm />
       </section>
     </main>
   );

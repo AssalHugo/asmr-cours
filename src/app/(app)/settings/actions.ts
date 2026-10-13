@@ -14,6 +14,15 @@ export async function saveSettings(raw: unknown): Promise<ActionResult> {
 
   // Client de session : la RLS limite la mise à jour à son propre profil.
   const supabase = await createClient();
+  if (input.defaultVoiceId) {
+    // La RLS ne montre que ses propres voix : celle d'un autre compte est refusée ici.
+    const { data: voice } = await supabase
+      .from("voices")
+      .select("id")
+      .eq("id", input.defaultVoiceId)
+      .maybeSingle();
+    if (!voice) return fail("Cette voix n'existe plus.");
+  }
   const { error } = await supabase
     .from("profiles")
     .update({

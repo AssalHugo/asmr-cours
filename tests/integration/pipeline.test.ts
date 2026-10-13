@@ -7,6 +7,7 @@ import { probe } from "@/lib/audio/ffmpeg";
 import { Caption, Chapter } from "@/lib/pipeline/schemas";
 import { STATUS_ORDER } from "@/lib/pipeline/status";
 import { keys } from "@/lib/storage/keys";
+import { createMockTts } from "@/lib/tts/mock";
 import {
   failCourse,
   generateCourse,
@@ -286,6 +287,101 @@ describe("pipeline complet en mode mock", () => {
     expect(h.calls.tts).toBe(0);
     expect(h.calls.rewrite).toBe(0);
     expect(h.repo.courses.get(course.id)).toMatchObject({ status: "failed" });
+  });
+
+  it("rejoue le contrôle du budget quand on reprend un cours arrêté pour dépassement", async () => {
+    const h = await createHarness({
+      budgetUsd: 0.0001,
+      models: {
+        text: "gemini-3.8-flash",
+        check: "gemini-3.5-flash-lite",
+        tts: "gemini-3.8-flash-tts",
+        ttsLite: "gemini-3.8-flash-lite-tts",
+      },
+    });
+    const course = await h.addCourse();
+    await expect(generateCourse(h.deps, payload(course.id))).rejects.toThrow(PipelineError);
+
+    // « Reprendre » : l'extraction est déjà faite, le budget n'en est pas moins dépassé.
+    await expect(generateCourse(h.deps, payload(course.id))).rejects.toThrow(/budget du mois/);
+    expect(h.calls.extract).toBe(1);
+    expect(h.calls.rewrite).toBe(0);
+    expect(h.calls.tts).toBe(0);
+  });
+
+  it("arrête le cours quand le plafond global est atteint, même si le budget personnel suffit", async () => {
+    const h = await createHarness({
+      models: {
+        text: "gemini-3.8-flash",
+        check: "gemini-3.5-flash-lite",
+        tts: "gemini-3.8-flash-tts",
+        ttsLite: "gemini-3.8-flash-lite-tts",
+      },
+    });
+    h.deps.limits.globalBudgetUsd = 0.0001;
+    const course = await h.addCourse();
+    await expect(generateCourse(h.deps, payload(course.id))).rejects.toThrow(/budget global/);
+    expect(h.calls.rewrite).toBe(0);
+  });
+
+  it("ne facture qu'une fois un résultat de Batch livré deux fois", async () => {
+    const mock = createMockTts();
+    const h = await createHarness({
+      tts: {
+        pollBatch: (jobId, onResult) =>
+          mock.pollBatch!(jobId, async (result) => {
+            await onResult(result);
+            await onResult(result);
+          }),
+      },
+    });
+    const course = await h.addCourse({ tier: "eco" });
+    await generateCourse(h.deps, payload(course.id));
+
+    const hashes = new Set((await h.repo.listChunks(course.id)).map((c) => c.hash));
+    expect(h.repo.usage.filter((u) => u.step === "tts")).toHaveLength(hashes.size);
+  });
+
+  it("garde le cours prêt, avec son ambiance, quand un changement d'ambiance échoue", async () => {
+    const h = await createHarness();
+    const course = await h.addCourse({ ambience: "rain" });
+    await generateCourse(h.deps, payload(course.id));
+
+    const remix = remixCourse(h.deps, {
+      courseId: course.id,
+      userId: USER,
+      ambience: "inconnue",
+      ambienceGainDb: -6,
+    });
+    await expect(remix).rejects.toThrow(PipelineError);
+    await failCourse(h.deps, course.id, USER, await remix.catch((e: unknown) => e), {
+      keepReady: true,
+    });
+    const after = h.repo.courses.get(course.id)!;
+    expect(after).toMatchObject({ status: "ready", ambience: "rain" });
+    expect(after.error).toContain("n'est pas encore installée");
+  });
+
+  it("garde l'ancien script si la régénération d'une section échoue", async () => {
+    let broken = false;
+    const base = (await createHarness()).deps.ai.llm;
+    const h = await createHarness({
+      llm: {
+        rewrite: async (input) => {
+          if (broken) throw new Error("Panne simulée de la réécriture");
+          return base.rewrite(input);
+        },
+      },
+    });
+    const course = await h.addCourse();
+    await generateCourse(h.deps, payload(course.id));
+    const [section] = await h.repo.listSections(course.id);
+
+    broken = true;
+    await expect(
+      regenerateSection(h.deps, { courseId: course.id, userId: USER, sectionId: section!.id }),
+    ).rejects.toThrow("Panne simulée");
+    expect((await h.repo.listSections(course.id))[0]?.script).toEqual(section!.script);
   });
 
   it("met en cache l'échantillon d'une voix par mode", async () => {

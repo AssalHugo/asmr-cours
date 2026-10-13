@@ -116,6 +116,9 @@ export class MemoryRepo implements PipelineRepo {
   async monthlySpend(userId: string) {
     return this.usage.filter((u) => u.userId === userId).reduce((sum, u) => sum + u.costUsd, 0);
   }
+  async globalMonthlySpend() {
+    return this.usage.reduce((sum, u) => sum + u.costUsd, 0);
+  }
   async courseCost(courseId: string) {
     return this.usage.filter((u) => u.courseId === courseId).reduce((sum, u) => sum + u.costUsd, 0);
   }

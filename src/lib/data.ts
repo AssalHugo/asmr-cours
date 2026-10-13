@@ -8,7 +8,16 @@ import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 type Tables = Database["public"]["Tables"];
-export type Course = Tables["courses"]["Row"];
+/**
+ * Colonnes de `courses` lisibles avec la session. Les colonnes internes (clés de stockage,
+ * identifiants de run et de batch) sont réservées au serveur : `select("*")` serait refusé.
+ */
+const COURSE_COLUMNS =
+  "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
+export type Course = Omit<
+  Tables["courses"]["Row"],
+  "source_keys" | "trigger_run_id" | "batch_job_id" | "batch_submitted_at"
+>;
 export type Section = Tables["sections"]["Row"];
 export type Voice = Tables["voices"]["Row"];
 export type Profile = Tables["profiles"]["Row"];
@@ -24,26 +33,43 @@ export async function getProfile(userId: string): Promise<Profile> {
   const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
   if (data) return data;
-  // Compte créé avant le trigger d'inscription : on répare.
+  // Compte créé avant le trigger d'inscription : on répare, sans jamais écraser un profil
+  // existant (une lecture ratée ne doit pas remettre le budget à sa valeur par défaut).
   const admin = createAdminClient();
-  const { data: created, error } = await admin
+  await admin
     .from("profiles")
-    .upsert({ id: userId, monthly_budget_usd: env().MONTHLY_BUDGET_USD })
-    .select("*")
-    .single();
+    .upsert(
+      { id: userId, monthly_budget_usd: env().MONTHLY_BUDGET_USD },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+  const { data: found, error } = await admin.from("profiles").select("*").eq("id", userId).single();
   if (error) throw new Error(`Profil introuvable : ${error.message}`);
-  return created;
+  return found;
 }
 
 export async function getMonthlySpend(): Promise<number> {
   const supabase = await createClient();
-  const { data } = await supabase.from("monthly_spend").select("spent_usd").maybeSingle();
+  const { data, error } = await supabase.from("monthly_spend").select("spent_usd").maybeSingle();
+  // Une lecture ratée ne vaut pas « rien dépensé » : les garde-fous du budget en dépendent.
+  if (error) throw new Error(`Dépense du mois illisible : ${error.message}`);
   return Number(data?.spent_usd ?? 0);
+}
+
+/** Dépense du mois tous comptes confondus, pour le plafond `GLOBAL_MONTHLY_BUDGET_USD`. */
+export async function getGlobalMonthlySpend(): Promise<number> {
+  const now = new Date();
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const { data, error } = await createAdminClient().rpc("spend_since", { p_since: since });
+  if (error) throw new Error(`Dépense globale illisible : ${error.message}`);
+  return Number(data);
 }
 
 export async function listCourses(search?: string): Promise<Course[]> {
   const supabase = await createClient();
-  let query = supabase.from("courses").select("*").order("created_at", { ascending: false });
+  let query = supabase
+    .from("courses")
+    .select(COURSE_COLUMNS)
+    .order("created_at", { ascending: false });
   const term = search?.trim();
   if (term) query = query.ilike("title", `%${term.replace(/[%_\\]/g, "\\$&")}%`);
   const { data, error } = await query;
@@ -53,7 +79,11 @@ export async function listCourses(search?: string): Promise<Course[]> {
 
 export async function getCourse(courseId: string): Promise<Course | null> {
   const supabase = await createClient();
-  const { data } = await supabase.from("courses").select("*").eq("id", courseId).maybeSingle();
+  const { data } = await supabase
+    .from("courses")
+    .select(COURSE_COLUMNS)
+    .eq("id", courseId)
+    .maybeSingle();
   return data;
 }
 
@@ -140,9 +170,13 @@ export async function listVoices(userId: string): Promise<Voice[]> {
         label: v.label,
         description: v.description,
       }));
+  // Deux requêtes simultanées sèment la même liste : l'index unique écarte les doublons.
   await createAdminClient()
     .from("voices")
-    .insert(starters.map((v) => ({ ...v, user_id: userId, env: appEnv })));
+    .upsert(
+      starters.map((v) => ({ ...v, user_id: userId, env: appEnv })),
+      { onConflict: "user_id,env,provider_voice_id", ignoreDuplicates: true },
+    );
   return load();
 }
 
@@ -180,7 +214,7 @@ export type CourseUsage = {
   actualUsd: number;
 };
 
-/** Historique du mois : coût estimé et coût réel de chaque cours. */
+/** Historique des 30 derniers cours : coût estimé et coût réel de chacun. */
 export async function listCourseUsage(userId: string): Promise<CourseUsage[]> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -189,10 +223,17 @@ export async function listCourseUsage(userId: string): Promise<CourseUsage[]> {
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(30);
-  const { data: events } = await supabase.from("usage_events").select("course_id, cost_usd");
+  // Somme faite en SQL (vue `course_costs`) : une ligne par cours, jamais tronquée.
+  const { data: costs } = await supabase
+    .from("course_costs")
+    .select("course_id, cost_usd")
+    .in(
+      "course_id",
+      (data ?? []).map((c) => c.id),
+    );
   const actual = new Map<string, number>();
-  for (const e of events ?? []) {
-    if (e.course_id) actual.set(e.course_id, (actual.get(e.course_id) ?? 0) + Number(e.cost_usd));
+  for (const c of costs ?? []) {
+    if (c.course_id) actual.set(c.course_id, Number(c.cost_usd ?? 0));
   }
   return (data ?? []).map((c) => ({
     courseId: c.id,

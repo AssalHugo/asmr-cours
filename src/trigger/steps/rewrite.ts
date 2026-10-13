@@ -8,7 +8,7 @@ import {
 import type { SectionRow } from "@/lib/pipeline/repo";
 import type { RewriteContext, RewriteFeedback } from "@/lib/prompts/rewrite";
 import { mapLimit, withRetry } from "@/lib/retry";
-import { recordUsage, setStatus, type Ctx } from "./context";
+import { billed, recordUsage, setStatus, type Ctx } from "./context";
 
 /** Sections réécrites ou vérifiées en parallèle. */
 const PARALLEL_SECTIONS = 3;
@@ -60,11 +60,13 @@ async function rewriteOnce(
 ): Promise<ScriptType> {
   const result = await withRetry(
     () =>
-      ctx.deps.ai.llm.rewrite({
-        section: toSource(row),
-        ctx: rewriteContext(ctx, row, count),
-        feedback,
-      }),
+      billed(ctx, "rewrite", () =>
+        ctx.deps.ai.llm.rewrite({
+          section: toSource(row),
+          ctx: rewriteContext(ctx, row, count),
+          feedback,
+        }),
+      ),
     { shouldRetry: (e) => e instanceof Error && e.name === "LlmOutputError", baseMs: 200 },
   );
   await recordUsage(ctx, "rewrite", result.model, "standard", result.usage);
@@ -81,16 +83,24 @@ export async function rewriteStep(ctx: Ctx): Promise<void> {
   await setStatus(ctx, "rewriting");
   let done = 0;
   await mapLimit(todo, PARALLEL_SECTIONS, async (row) => {
-    let script = await rewriteOnce(ctx, row, sections.length);
-    const problems = scriptProblems(script, row.source_text.length);
-    // Contrôle de forme côté code : une seule relance.
-    if (problems.length > 0) script = await rewriteOnce(ctx, row, sections.length, { problems });
-    await repo.updateSection(row.id, {
-      script: sanitizeScript(script),
-      verified: false,
-      verify_report: null,
-    });
+    await rewriteSection(ctx, row, sections.length);
     await setStatus(ctx, "rewriting", ++done / todo.length);
+  });
+}
+
+/**
+ * Réécrit une section et remplace son script d'un seul coup : tant que la réécriture n'a pas
+ * abouti, l'ancien script reste en place.
+ */
+export async function rewriteSection(ctx: Ctx, row: SectionRow, count: number): Promise<void> {
+  let script = await rewriteOnce(ctx, row, count);
+  const problems = scriptProblems(script, row.source_text.length);
+  // Contrôle de forme côté code : une seule relance.
+  if (problems.length > 0) script = await rewriteOnce(ctx, row, count, { problems });
+  await ctx.deps.repo.updateSection(row.id, {
+    script: sanitizeScript(script),
+    verified: false,
+    verify_report: null,
   });
 }
 
@@ -106,7 +116,7 @@ export async function verifyStep(ctx: Ctx): Promise<void> {
   await mapLimit(todo, PARALLEL_SECTIONS, async (row) => {
     let script = Script.parse(row.script);
     for (let rewrites = 0; ; rewrites++) {
-      const verdict = await ai.llm.verify(toSource(row), script);
+      const verdict = await billed(ctx, "verify", () => ai.llm.verify(toSource(row), script));
       await recordUsage(ctx, "verify", verdict.model, "standard", verdict.usage);
       const formWarnings = scriptProblems(script, row.source_text.length);
       const clean = reportIsClean(verdict.data);

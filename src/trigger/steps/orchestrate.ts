@@ -1,3 +1,5 @@
+import { getAmbience } from "@/lib/ambiences";
+import { isAmbienceInstalled } from "@/lib/audio/ambience-synth";
 import { TTS_STYLE } from "@/lib/pipeline/chunker";
 import type {
   GenerateCoursePayload,
@@ -16,11 +18,38 @@ import {
   PipelineError,
   recordUsage,
   userMessage,
+  type Ctx,
   type PipelineDeps,
 } from "./context";
 import { extractStep } from "./extract";
-import { rewriteStep, verifyStep } from "./rewrite";
+import { rewriteSection, rewriteStep, verifyStep } from "./rewrite";
 import { synthStep } from "./synthesize";
+
+/** Refuse de démarrer avec une ambiance absente : le cours échouerait au mix, une fois payé. */
+async function assertAmbience(ctx: Ctx, id: string): Promise<void> {
+  const { storage, ai } = ctx.deps;
+  if (await isAmbienceInstalled(storage, id, ai.mock)) return;
+  throw new PipelineError(
+    `L'ambiance « ${getAmbience(id)?.label ?? id} » n'est pas encore installée. Choisis « Bruit rose », ou installe-la (docs/SETUP.md, étape Ambiances).`,
+  );
+}
+
+/**
+ * Plafond du budget avant les étapes payantes. Rejoué à chaque passage, reprise comprise :
+ * un cours arrêté pour dépassement ne repart pas tant que le budget ne le permet pas.
+ * Sauté quand il ne reste que l'assemblage, qui ne coûte rien.
+ */
+async function budgetGate(ctx: Ctx): Promise<void> {
+  const { repo } = ctx.deps;
+  const [sections, chunks] = await Promise.all([
+    repo.listSections(ctx.course.id),
+    repo.listChunks(ctx.course.id),
+  ]);
+  const textDone = sections.every((s) => s.script !== null && s.verify_report !== null);
+  const audioDone = chunks.length > 0 && chunks.every((c) => c.status === "done");
+  if (textDone && audioDone) return;
+  await assertBudget(ctx, Math.max(0, (ctx.course.est_cost_usd ?? 0) - ctx.costUsd));
+}
 
 /**
  * §8.0 — Chaque étape lit l'état en base et saute ce qui est déjà fait :
@@ -29,7 +58,9 @@ import { synthStep } from "./synthesize";
 export async function generateCourse(deps: PipelineDeps, payload: GenerateCoursePayload) {
   const ctx = await loadCtx(deps, payload.courseId, payload.userId);
   if (ctx.course.status === "failed") await patchCourse(ctx, { error: null });
+  await assertAmbience(ctx, ctx.course.ambience);
   await extractStep(ctx, { titleIsDefault: payload.titleIsDefault });
+  await budgetGate(ctx);
   await rewriteStep(ctx);
   await verifyStep(ctx);
   await chunkStep(ctx);
@@ -42,14 +73,10 @@ export async function generateCourse(deps: PipelineDeps, payload: GenerateCourse
 export async function regenerateSection(deps: PipelineDeps, payload: RegenerateSectionPayload) {
   const ctx = await loadCtx(deps, payload.courseId, payload.userId, { forceStandard: true });
   const sections = await deps.repo.listSections(ctx.course.id);
-  if (!sections.some((s) => s.id === payload.sectionId)) {
-    throw new PipelineError("Cette section n'existe plus.");
-  }
-  await deps.repo.updateSection(payload.sectionId, {
-    script: null,
-    verified: false,
-    verify_report: null,
-  });
+  const section = sections.find((s) => s.id === payload.sectionId);
+  if (!section) throw new PipelineError("Cette section n'existe plus.");
+  // L'ancien script reste en place jusqu'à ce que le nouveau soit écrit.
+  await rewriteSection(ctx, section, sections.length);
   await rewriteStep(ctx);
   await verifyStep(ctx);
   await chunkStep(ctx);
@@ -62,8 +89,12 @@ export async function regenerateSection(deps: PipelineDeps, payload: RegenerateS
 /** §8.9 — Nouveau pré-mix avec une autre ambiance : FFmpeg seul, coût IA nul. */
 export async function remixCourse(deps: PipelineDeps, payload: RemixPayload) {
   const ctx = await loadCtx(deps, payload.courseId, payload.userId);
-  await patchCourse(ctx, { ambience: payload.ambience, ambience_gain_db: payload.ambienceGainDb });
-  await assembleAndPublish(ctx);
+  await assertAmbience(ctx, payload.ambience);
+  // L'ambiance n'est enregistrée qu'avec le nouveau rendu : un remix qui échoue laisse
+  // le cours tel qu'il était.
+  const remix = { ambience: payload.ambience, ambience_gain_db: payload.ambienceGainDb };
+  Object.assign(ctx.course, remix);
+  await assembleAndPublish(ctx, remix);
   return { courseId: ctx.course.id };
 }
 
@@ -90,18 +121,27 @@ export async function voiceSample(deps: PipelineDeps, payload: VoiceSamplePayloa
   return { key, cached: false };
 }
 
-/** Marque le cours en échec avec un message lisible. Appelé une fois les essais épuisés. */
+/**
+ * Marque le cours en échec avec un message lisible. Appelé une fois les essais épuisés.
+ * `keepReady` (remix) : rien n'a été modifié, le cours reste écoutable et garde le message.
+ */
 export async function failCourse(
   deps: PipelineDeps,
   courseId: string,
   userId: string,
   error: unknown,
+  opts: { keepReady?: boolean } = {},
 ): Promise<string> {
   const message = userMessage(error);
-  await deps.repo.updateCourse(courseId, userId, { status: "failed", error: message });
+  const status = opts.keepReady ? "ready" : "failed";
+  await deps.repo.updateCourse(courseId, userId, {
+    status,
+    progress: opts.keepReady ? 100 : 0,
+    error: message,
+  });
   deps.report?.({
-    status: "failed",
-    progress: 0,
+    status,
+    progress: opts.keepReady ? 100 : 0,
     costUsd: await deps.repo.courseCost(courseId).catch(() => 0),
     durationMs: 0,
     error: message,

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getUser } from "@/lib/auth";
 import { env, triggerEnv } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type RealtimeAccess = { mode: "poll" } | { mode: "trigger"; runId: string; token: string };
@@ -20,14 +21,24 @@ export async function GET(request: NextRequest) {
 
   // Client de session : la RLS ne montre que ses cours et ceux partagés avec elle.
   const supabase = await createClient();
-  const { data: course } = await supabase
+  const { data: visible } = await supabase
     .from("courses")
-    .select("trigger_run_id")
+    .select("id, user_id")
     .eq("id", courseId.data)
     .maybeSingle();
-  if (!course) return NextResponse.json({ message: "Cours introuvable." }, { status: 404 });
+  if (!visible) return NextResponse.json({ message: "Cours introuvable." }, { status: 404 });
 
-  if (env().JOBS_MODE === "inline" || !course.trigger_run_id) {
+  // Le jeton du run est réservé à la propriétaire : une destinataire de partage suit la base.
+  if (env().JOBS_MODE === "inline" || visible.user_id !== user.id) {
+    return NextResponse.json({ mode: "poll" } satisfies RealtimeAccess);
+  }
+  const { data: course } = await createAdminClient()
+    .from("courses")
+    .select("trigger_run_id")
+    .eq("id", visible.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!course?.trigger_run_id) {
     return NextResponse.json({ mode: "poll" } satisfies RealtimeAccess);
   }
   triggerEnv();

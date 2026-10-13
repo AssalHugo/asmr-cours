@@ -21,10 +21,31 @@ const SIGNED_OUT = fail("Ta session a expiré. Reconnecte-toi.");
 const MAX_VOICES_PER_USER = 40;
 const PROVIDER_VOICE_ID = /^(voice_|mock_voice_)[A-Za-z0-9_-]{6,120}$/;
 
+/** Une lecture ratée compte comme un budget atteint : le garde-fou refuse plutôt que de laisser passer. */
 async function overBudget(userId: string): Promise<boolean> {
   if (billingModels().mock) return false;
-  const [profile, spent] = await Promise.all([getProfile(userId), getMonthlySpend()]);
-  return spent >= Number(profile.monthly_budget_usd);
+  try {
+    const [profile, spent] = await Promise.all([getProfile(userId), getMonthlySpend()]);
+    return spent >= Number(profile.monthly_budget_usd);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Supprime chez Gemini un brouillon de voix, jamais une voix enregistrée : l'identifiant
+ * vient du navigateur, et une voix gardée (par ce compte ou un autre) doit survivre.
+ */
+async function removeDraft(providerVoiceId: string): Promise<void> {
+  if (!PROVIDER_VOICE_ID.test(providerVoiceId)) return;
+  const { count, error } = await createAdminClient()
+    .from("voices")
+    .select("id", { count: "exact", head: true })
+    .eq("provider_voice_id", providerVoiceId);
+  if (error || (count ?? 0) > 0) return;
+  await aiProviders()
+    .voices.remove(providerVoiceId)
+    .catch(() => undefined);
 }
 
 /** « Écouter la voix » : échantillon mis en cache par voix × mode. */
@@ -65,7 +86,7 @@ export type VoiceDraft = { providerVoiceId: string; sample: string | null };
 
 /**
  * Essai de voice design : crée une voix à partir d'une description et renvoie son
- * échantillon. Les essais passent par le modèle TTS Lite ; un brouillon non gardé est supprimé.
+ * échantillon. Les essais passent par le modèle TTS standard ; un brouillon non gardé est supprimé.
  */
 export async function tryVoiceDesign(
   raw: unknown,
@@ -78,9 +99,7 @@ export async function tryVoiceDesign(
   if (await overBudget(user.id)) return fail("Le budget du mois est atteint.", "over_budget");
 
   const ai = aiProviders();
-  if (previousDraftId && PROVIDER_VOICE_ID.test(previousDraftId)) {
-    await ai.voices.remove(previousDraftId).catch(() => undefined);
-  }
+  if (previousDraftId) await removeDraft(previousDraftId);
   try {
     const model = ai.models.tts;
     const draft = await ai.voices.design({
@@ -122,14 +141,7 @@ export async function discardVoiceDraft(providerVoiceId: string): Promise<Action
   const user = await getUser();
   if (!user) return SIGNED_OUT;
   if (!PROVIDER_VOICE_ID.test(providerVoiceId)) return fail("Brouillon invalide.");
-  const { count } = await createAdminClient()
-    .from("voices")
-    .select("id", { count: "exact", head: true })
-    .eq("provider_voice_id", providerVoiceId);
-  if ((count ?? 0) === 0)
-    await aiProviders()
-      .voices.remove(providerVoiceId)
-      .catch(() => undefined);
+  await removeDraft(providerVoiceId);
   return { ok: true };
 }
 
@@ -213,6 +225,7 @@ export async function setDefaultVoice(voiceId: string): Promise<ActionResult> {
     .eq("id", voiceId)
     .maybeSingle();
   if (!voice) return fail("Cette voix n'existe plus.");
+  if (!z.uuid().safeParse(voiceId).success) return fail("Cette voix n'existe plus.");
   const { error } = await supabase
     .from("profiles")
     .update({ default_voice_id: voiceId })

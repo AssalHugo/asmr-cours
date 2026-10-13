@@ -1,10 +1,24 @@
 import { join } from "node:path";
-import { getAmbience } from "@/lib/ambiences";
+import { getAmbience, SYNTHETIC_AMBIENCE_ID } from "@/lib/ambiences";
 import { withWorkdir } from "@/lib/pipeline/workdir";
 import { keys } from "@/lib/storage/keys";
 import type { ObjectStorage } from "@/lib/storage/types";
 import { runFfmpeg } from "./ffmpeg";
 import { noiseBedArgs } from "./mix";
+
+/**
+ * L'ambiance peut-elle être mixée ? Le bruit rose est synthétisé à la demande (toutes les
+ * ambiances le sont en mode mock) ; les autres doivent avoir leur fichier maître en stockage.
+ */
+export async function isAmbienceInstalled(
+  storage: ObjectStorage,
+  id: string,
+  mock: boolean,
+): Promise<boolean> {
+  if (!getAmbience(id)) return false;
+  if (id === SYNTHETIC_AMBIENCE_ID || mock) return true;
+  return (await storage.head(keys.ambienceMaster(id))) !== null;
+}
 
 /** Durée du lit d'ambiance synthétique, en secondes. */
 export const SYNTH_AMBIENCE_SECONDS = 120;
