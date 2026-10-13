@@ -32,6 +32,9 @@ Règles Next.js propres à cette version : @AGENTS.md
 - `import "server-only"` sur tout module qui touche une clé. Vitest le remplace par `tests/stubs/server-only.ts`.
 - Env : `src/lib/env.schema.ts` (schéma pur, testable), `src/lib/env.ts` (lecture paresseuse + groupes `r2Env()`, `geminiEnv()`…), `src/lib/env.public.ts` (navigateur).
 - Toutes les pages sont dynamiques (session). Les lectures passent par `src/lib/data.ts` (client de session, RLS).
+- `courses` : le navigateur ne lit que les colonnes de `COURSE_COLUMNS` (`select("*")` avec la session est refusé) ; les colonnes internes se lisent avec la clé secrète, filtrées par `user_id`.
+- Dépenses : toujours agrégées en SQL (`spend_since`, `course_cost`, vues), jamais additionnées ligne à ligne (plafond de 1 000 lignes).
+- Inscriptions Supabase fermées : le compte d'une adresse invitée est créé par `sendMagicLink` avec la clé secrète.
 - FFmpeg : toujours `spawn` avec un tableau d'arguments.
 - Textes d'interface en français.
 

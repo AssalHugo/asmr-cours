@@ -23,7 +23,12 @@ export type PipelineDeps = {
   storage: ObjectStorage;
   ai: AiProviders;
   appEnv: "dev" | "prod";
-  limits: { ttsConcurrency: number; maxSourceChars: number };
+  limits: {
+    ttsConcurrency: number;
+    maxSourceChars: number;
+    /** Plafond mensuel tous comptes confondus (`GLOBAL_MONTHLY_BUDGET_USD`), s'il est défini. */
+    globalBudgetUsd?: number;
+  };
   now: () => Date;
   /** Attente longue : `wait.for` (checkpoint, non facturée) sous Trigger.dev. */
   wait: (seconds: number) => Promise<void>;
@@ -41,6 +46,8 @@ export type Ctx = {
   course: CourseRow;
   /** Audio synthétisé pendant ce run, en millisecondes. */
   producedMs: number;
+  /** Coût cumulé du cours, tenu à jour à chaque appel facturé. */
+  costUsd: number;
   /** Synthèse en appels standard même pour un cours Éco (régénération d'une section). */
   forceStandard: boolean;
 };
@@ -53,7 +60,14 @@ export async function loadCtx(
 ): Promise<Ctx> {
   const course = await deps.repo.getCourse(courseId, userId);
   if (!course) throw new PipelineError("Ce cours n'existe plus.");
-  return { deps, userId, course, producedMs: 0, forceStandard: opts.forceStandard ?? false };
+  return {
+    deps,
+    userId,
+    course,
+    producedMs: 0,
+    costUsd: await deps.repo.courseCost(courseId),
+    forceStandard: opts.forceStandard ?? false,
+  };
 }
 
 export async function patchCourse(ctx: Ctx, patch: CoursePatch): Promise<void> {
@@ -77,7 +91,7 @@ export async function setStatus(
     ctx.deps.report?.({
       status,
       progress,
-      costUsd: await ctx.deps.repo.courseCost(ctx.course.id),
+      costUsd: ctx.costUsd,
       durationMs: ctx.producedMs,
     });
   }
@@ -85,7 +99,7 @@ export async function setStatus(
 
 /** Journalise un appel facturable dans `usage_events`, coût calculé au tarif du jour. */
 export async function recordUsage(
-  ctx: Pick<Ctx, "deps" | "userId"> & { course?: Pick<CourseRow, "id"> },
+  ctx: Pick<Ctx, "deps" | "userId"> & { course?: Pick<CourseRow, "id">; costUsd?: number },
   step: string,
   model: string,
   tier: BillingTier,
@@ -101,7 +115,36 @@ export async function recordUsage(
     usage,
     costUsd: cost,
   });
+  if (typeof ctx.costUsd === "number") ctx.costUsd += cost;
   return cost;
+}
+
+type BilledFailure = { usage: BillableUsage; model: string };
+
+function billedFailure(error: unknown): BilledFailure | null {
+  if (typeof error !== "object" || error === null) return null;
+  const { usage, model } = error as { usage?: BillableUsage; model?: unknown };
+  return usage && typeof model === "string" ? { usage, model } : null;
+}
+
+/**
+ * Exécute un appel IA et journalise aussi les réponses rejetées : une sortie hors schéma
+ * est facturée par le fournisseur, même si elle est relancée.
+ */
+export async function billed<T>(
+  ctx: Parameters<typeof recordUsage>[0],
+  step: string,
+  call: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    const failure = billedFailure(error);
+    if (failure) {
+      await recordUsage(ctx, step, failure.model, "standard", failure.usage).catch(() => undefined);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -109,11 +152,17 @@ export async function recordUsage(
  * a été donnée au lancement : seul un dépassement du budget arrête le cours ici.
  */
 export async function assertBudget(ctx: Ctx, estimateUsd: number): Promise<void> {
-  const { repo, now } = ctx.deps;
+  const { repo, now, limits } = ctx.deps;
   const [profile, spentUsd] = await Promise.all([
     repo.getProfile(ctx.userId),
     repo.monthlySpend(ctx.userId, now()),
   ]);
+  if (limits.globalBudgetUsd !== undefined) {
+    const globalSpent = await repo.globalMonthlySpend(now());
+    if (globalSpent + estimateUsd > limits.globalBudgetUsd) {
+      throw new PipelineError(GLOBAL_BUDGET_MESSAGE);
+    }
+  }
   const decision = checkBudget({
     spentUsd,
     estimateUsd,
@@ -123,6 +172,9 @@ export async function assertBudget(ctx: Ctx, estimateUsd: number): Promise<void>
   });
   if (!decision.ok) throw new PipelineError(decision.message);
 }
+
+export const GLOBAL_BUDGET_MESSAGE =
+  "Le budget global de Murmure pour ce mois est atteint. Réessaie le mois prochain.";
 
 /** Message affiché à l'utilisatrice quand un cours échoue. */
 export function userMessage(error: unknown): string {

@@ -2,14 +2,7 @@ import { join } from "node:path";
 import { comboKey, estimateCourse } from "@/lib/estimate";
 import type { ExtractInput } from "@/lib/llm/provider";
 import { normalizeSections } from "@/lib/pipeline/sections";
-import {
-  assertBudget,
-  patchCourse,
-  PipelineError,
-  recordUsage,
-  setStatus,
-  type Ctx,
-} from "./context";
+import { billed, patchCourse, PipelineError, recordUsage, setStatus, type Ctx } from "./context";
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   pdf: "application/pdf",
@@ -54,7 +47,9 @@ export async function extractStep(ctx: Ctx, opts: { titleIsDefault: boolean }): 
   if ((await repo.listSections(ctx.course.id)).length > 0) return;
 
   await setStatus(ctx, "extracting");
-  const result = await workdir(async (dir) => ai.llm.extract(await loadSource(ctx, dir)));
+  const result = await billed(ctx, "extract", () =>
+    workdir(async (dir) => ai.llm.extract(await loadSource(ctx, dir))),
+  );
   await recordUsage(ctx, "extract", result.model, "standard", result.usage);
 
   const sections = normalizeSections(result.data.sections);
@@ -92,6 +87,6 @@ export async function extractStep(ctx: Ctx, opts: { titleIsDefault: boolean }): 
     est_cost_usd: Number(combo.totalUsd.toFixed(4)),
     ...(opts.titleIsDefault ? { title: result.data.title.slice(0, 200) } : {}),
   });
-  await assertBudget(ctx, combo.totalUsd);
+  // Le budget est recontrôlé juste après, par `budgetGate`, y compris lors d'une reprise.
   await setStatus(ctx, "extracting", 1);
 }

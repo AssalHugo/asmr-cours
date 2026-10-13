@@ -18,7 +18,7 @@ async function canPlayAac(page: Page): Promise<boolean> {
   );
 }
 
-test("refuse poliment une adresse non invitée, et protège l'app sans session", async ({
+test("ne révèle pas si une adresse est invitée, et protège l'app sans session", async ({
   browser,
 }) => {
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
@@ -27,7 +27,10 @@ test("refuse poliment une adresse non invitée, et protège l'app sans session",
   await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel("Ton email").fill("inconnue@exemple.fr");
   await page.getByRole("button", { name: "Recevoir mon lien" }).click();
+  // Même réponse que pour une adresse invitée, mais aucune session n'est ouverte.
   await expect(page.getByText("Murmure est un espace privé")).toBeVisible();
+  await page.goto("/library");
+  await expect(page).toHaveURL(/\/login$/);
   await context.close();
 });
 

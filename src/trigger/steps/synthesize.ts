@@ -65,6 +65,9 @@ async function runBatch(job: Job, chunks: ChunkRow[], voiceId: string): Promise<
   const { now, wait, batchPollSeconds, batchTimeoutMs } = ctx.deps;
   if (!tts.submitBatch || !tts.pollBatch) return chunks;
 
+  // Une reprise relit tout le fichier de résultats : seuls les chunks encore attendus sont
+  // rangés et facturés, les autres l'ont déjà été.
+  const wanted = new Set(chunks.map((c) => c.hash));
   const received = new Set<string>();
   const clear = () => patchCourse(ctx, { batch_job_id: null, batch_submitted_at: null });
 
@@ -91,6 +94,7 @@ async function runBatch(job: Job, chunks: ChunkRow[], voiceId: string): Promise<
   for (;;) {
     await setStatus(ctx, "waiting_batch", progress(job));
     const poll = await tts.pollBatch(jobId, async (result) => {
+      if (!wanted.has(result.key) || received.has(result.key)) return;
       received.add(result.key);
       await store(job, result, "batch");
     });

@@ -108,6 +108,8 @@ export interface PipelineRepo {
   insertUsage(event: UsageEvent): Promise<void>;
   /** Dépense du mois courant de l'utilisatrice. */
   monthlySpend(userId: string, at: Date): Promise<number>;
+  /** Dépense du mois courant, tous comptes confondus (plafond global). */
+  globalMonthlySpend(at: Date): Promise<number>;
   /** Coût réel cumulé d'un cours. */
   courseCost(courseId: string): Promise<number>;
   /** Cours terminés avec la même voix et le même mode, pour mesurer le débit. */

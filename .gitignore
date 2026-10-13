@@ -53,4 +53,5 @@ next-env.d.ts
 /assets/ambience/raw/*
 !/assets/ambience/raw/.gitkeep
 /.claude/launch.json
+/.idea
 /assets/ambience/out

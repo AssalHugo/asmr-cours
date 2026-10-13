@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAllowedEmail } from "@/lib/allowlist";
 
 const PUBLIC_PREFIXES = ["/login", "/auth/"];
 
@@ -30,7 +31,15 @@ export async function updateSession(request: NextRequest) {
 
   // Ne rien exécuter entre la création du client et getClaims().
   const { data } = await supabase.auth.getClaims();
-  const signedIn = Boolean(data?.claims?.sub);
+  // Même règle que `getUser` : une session dont l'adresse n'est plus invitée ne compte pas
+  // comme connectée, sinon /login et /library se renverraient la visite sans fin.
+  const email = data?.claims?.email;
+  const allowed = (process.env.ALLOWED_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0);
+  const signedIn =
+    Boolean(data?.claims?.sub) && typeof email === "string" && isAllowedEmail(email, allowed);
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));

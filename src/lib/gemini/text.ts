@@ -5,8 +5,13 @@ import { withRetry } from "@/lib/retry";
 import { gemini, type InteractionInput } from "./client";
 import { textUsage } from "./usage";
 
+/** Sortie inexploitable. L'appel a tout de même été facturé : `usage` et `model` le disent. */
 export class LlmOutputError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly model?: string,
+    readonly usage?: BillableUsage,
+  ) {
     super(message);
     this.name = "LlmOutputError";
   }
@@ -67,17 +72,25 @@ export async function generateJson<T>(
   );
   const usage = textUsage(interaction.usage);
   if (interaction.status !== "completed" || !interaction.output_text) {
-    throw new LlmOutputError(`Réponse ${req.model} incomplète (statut ${interaction.status}).`);
+    throw new LlmOutputError(
+      `Réponse ${req.model} incomplète (statut ${interaction.status}).`,
+      req.model,
+      usage,
+    );
   }
   let json: unknown;
   try {
     json = JSON.parse(interaction.output_text);
   } catch {
-    throw new LlmOutputError(`Réponse ${req.model} illisible : JSON invalide.`);
+    throw new LlmOutputError(`Réponse ${req.model} illisible : JSON invalide.`, req.model, usage);
   }
   const parsed = req.schema.safeParse(json);
   if (!parsed.success) {
-    throw new LlmOutputError(`Réponse ${req.model} hors schéma : ${z.prettifyError(parsed.error)}`);
+    throw new LlmOutputError(
+      `Réponse ${req.model} hors schéma : ${z.prettifyError(parsed.error)}`,
+      req.model,
+      usage,
+    );
   }
   return { data: parsed.data, usage };
 }

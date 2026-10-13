@@ -10,6 +10,7 @@ import { concatArgs, concatList, silenceArgs, trimSilenceArgs } from "@/lib/audi
 import { parseWav } from "@/lib/audio/wav";
 import { mapLimit } from "@/lib/retry";
 import { keys } from "@/lib/storage/keys";
+import type { CoursePatch } from "@/lib/pipeline/repo";
 import { PipelineError, setStatus, type Ctx } from "./context";
 
 /**
@@ -41,7 +42,7 @@ export async function ensureAmbienceMaster(ctx: Ctx, id: string, dir: string): P
  * §8.6 à §8.8 — Assemblage, mastering, pré-mix et publication. Aucun appel IA : tout part
  * des chunks du cache, ce qui rend l'étape rejouable (reprise, changement d'ambiance).
  */
-export async function assembleAndPublish(ctx: Ctx): Promise<void> {
+export async function assembleAndPublish(ctx: Ctx, extra: CoursePatch = {}): Promise<void> {
   const { repo, storage, workdir } = ctx.deps;
   const courseId = ctx.course.id;
   const chunks = await repo.listChunks(courseId);
@@ -164,6 +165,7 @@ export async function assembleAndPublish(ctx: Ctx): Promise<void> {
     await Promise.all(stale.map((r) => storage.delete(r.key)));
 
     await setStatus(ctx, "ready", 1, {
+      ...extra,
       duration_ms: durationMs,
       actual_cost_usd: Number((await repo.courseCost(courseId)).toFixed(4)),
       error: null,

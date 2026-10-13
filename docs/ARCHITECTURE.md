@@ -21,7 +21,7 @@ flowchart LR
 - **Next.js** sert l'interface, contrôle chaque action côté serveur (session, limites, budget) et délivre les URLs présignées. Il ne fait aucun traitement long.
 - **Trigger.dev** exécute le pipeline. FFmpeg y est installé par l'extension de build.
 - **Supabase** garde les données. Le navigateur ne peut que lire ses propres lignes (RLS), plus les cours et sections qu'un autre compte partage avec son adresse (`course_shares`, lecture seule) ; les écritures métier passent par le serveur avec la clé secrète, toujours filtrées par `user_id`.
-- **R2** garde les fichiers. Le bucket est privé : tout accès passe par une URL présignée courte.
+- **R2** garde les fichiers. Le bucket est privé : tout accès passe par une URL présignée (15 min en dépôt, 6 h en lecture, le temps d'une longue écoute).
 
 ## Le pipeline
 
@@ -82,8 +82,14 @@ Les étapes reçoivent leurs dépendances (`PipelineDeps` : dépôt, stockage, I
 Chaque appel écrit une ligne dans `usage_events` avec son coût, calculé par `src/lib/pricing.ts` au tarif du jour (les tarifs doublent le 1er janvier 2027). Le budget est contrôlé trois fois, toujours côté serveur :
 
 1. au lancement, sur l'estimation (refus au-delà du budget, confirmation au-delà de 80 %, Express désactivé au-delà de 80 %) ;
-2. après l'extraction, quand la taille réelle du cours est connue ;
+2. après l'extraction, quand la taille réelle du cours est connue. Ce contrôle (`budgetGate`) est rejoué à chaque passage tant qu'il reste du texte ou de la voix à produire : « Reprendre » un cours arrêté pour dépassement ne le contourne pas ;
 3. avant un repli du Batch vers l'API standard, deux fois plus chère.
+
+Les sommes sont faites en SQL (`spend_since`, `course_cost`, vues `monthly_spend` et `course_costs`) : une lecture ligne à ligne serait tronquée à 1 000 lignes par l'API. Chaque compte règle son budget (500 $ au plus, borné par la base) ; `GLOBAL_MONTHLY_BUDGET_USD` ajoute un plafond tous comptes confondus. Une lecture de dépense qui échoue fait refuser l'action, jamais l'accepter.
+
+### Limites
+
+Un seul cours en préparation par compte : c'est un index unique partiel qui le garantit, et les changements de statut sont conditionnels (deux clics ne lancent qu'une tâche). La limite quotidienne compte les lancements dans `course_launches`, que la suppression d'un cours n'efface pas. L'ambiance est vérifiée avant tout appel payant ; un changement d'ambiance qui échoue laisse le cours écoutable.
 
 Le suivi de l'app reste une estimation : la console de facturation Google fait foi.
 
@@ -108,6 +114,8 @@ flowchart LR
 ## Hors-ligne
 
 Le lecteur ne connaît que des adresses stables, `/api/audio/{cours}/{fichier}`, qui redirigent vers une URL présignée. « Télécharger » range ces adresses dans Cache Storage (`murmure-audio-v1`) sous forme de réponses complètes, avec la page du lecteur. Le service worker (`src/app/sw.ts`) répond ensuite depuis ce cache et découpe lui-même les plages `Range` que demande l'élément audio. La clé de cache ne dépend donc jamais d'une signature présignée.
+
+Les copies hors-ligne suivent le compte : la déconnexion vide le cache, une page de lecteur qui répond 404 (cours supprimé, partage retiré) emporte ses fichiers, et un nouveau déploiement recharge les pages de lecteur gardées.
 
 ## Machine Trigger.dev
 

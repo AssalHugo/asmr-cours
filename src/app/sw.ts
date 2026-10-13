@@ -40,6 +40,8 @@ async function playerPageHandler({ request }: RouteHandlerCallbackOptions): Prom
     if (response.ok && !response.redirected && (await cache.match(key))) {
       await cache.put(key, response.clone());
     }
+    // Cours supprimé, ou partage retiré : sa copie hors-ligne part avec lui.
+    if (response.status === 404) await purgeCourse(cache, key.slice("/play/".length));
     return response;
   } catch (error) {
     const cached = await cache.match(key);
@@ -47,6 +49,38 @@ async function playerPageHandler({ request }: RouteHandlerCallbackOptions): Prom
     throw error;
   }
 }
+
+async function purgeCourse(cache: Cache, courseId: string): Promise<void> {
+  for (const cached of await cache.keys()) {
+    const path = new URL(cached.url).pathname;
+    if (path.startsWith(`/api/audio/${courseId}/`) || path === `/play/${courseId}`) {
+      await cache.delete(cached);
+    }
+  }
+}
+
+/**
+ * Après un déploiement, les pages de lecteur gardées hors-ligne pointent vers des scripts
+ * de l'ancienne version : on les recharge dès que le nouveau service worker prend la main.
+ */
+async function refreshPlayerPages(): Promise<void> {
+  const cache = await caches.open(AUDIO_CACHE);
+  for (const cached of await cache.keys()) {
+    const path = new URL(cached.url).pathname;
+    if (!PLAYER_PAGE.test(path)) continue;
+    try {
+      const response = await fetch(path, { credentials: "same-origin" });
+      if (response.ok && !response.redirected) await cache.put(path, response);
+      else if (response.status === 404) await purgeCourse(cache, path.slice("/play/".length));
+    } catch {
+      // Hors-ligne : la copie actuelle reste en place.
+    }
+  }
+}
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(refreshPlayerPages());
+});
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,

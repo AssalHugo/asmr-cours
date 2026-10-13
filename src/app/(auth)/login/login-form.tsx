@@ -13,7 +13,8 @@ export function LoginForm({ linkError }: { linkError: boolean }) {
       <div role="status" className="space-y-2 text-center">
         <p className="text-lg">C&apos;est parti.</p>
         <p className="text-muted-foreground">
-          Un lien de connexion t&apos;attend dans la boîte de {state.email}.
+          Si {state.email} est invitée, un lien de connexion l&apos;attend dans sa boîte. Murmure
+          est un espace privé.
         </p>
       </div>
     );

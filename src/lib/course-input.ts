@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { AMBIENCE_GAIN_RANGE, isAmbienceId } from "@/lib/ambiences";
 
+// Les messages par défaut de zod remontent tels quels dans l'interface : en français.
+z.config(z.locales.fr());
+
 const ambience = z.string().refine(isAmbienceId, "Ambiance inconnue");
 const gainDb = z.number().min(AMBIENCE_GAIN_RANGE.min).max(AMBIENCE_GAIN_RANGE.max);
 
@@ -9,6 +12,8 @@ export const SourceInput = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("text"),
     text: z.string().trim().min(200, "Colle au moins quelques phrases de cours."),
+    /** Dépôt précédent du même brouillon, à remplacer plutôt qu'à laisser orphelin. */
+    courseId: z.uuid().optional(),
   }),
   z.object({
     kind: z.enum(["pdf", "images"]),

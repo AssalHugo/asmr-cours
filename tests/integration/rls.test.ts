@@ -122,6 +122,43 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
     expect(Number(spend.data?.[0]?.spent_usd)).toBe(1.25);
   });
 
+  it("cache au navigateur les colonnes internes d'un cours et les fonctions de dépense", async () => {
+    const a = users[0]!.client;
+    expect((await a.from("courses").select("source_keys")).error).not.toBeNull();
+    expect((await a.from("courses").select("trigger_run_id")).error).not.toBeNull();
+    expect((await a.from("courses").select("*")).error).not.toBeNull();
+    expect((await a.from("courses").select("id, title, status")).error).toBeNull();
+    const since = new Date(0).toISOString();
+    expect((await a.rpc("spend_since", { p_since: since })).error).not.toBeNull();
+    expect((await a.rpc("course_cost", { p_course_id: courseOfA })).error).not.toBeNull();
+    expect((await a.from("course_launches").select("id")).error).not.toBeNull();
+    expect(Number((await admin.rpc("course_cost", { p_course_id: courseOfA })).data)).toBe(1.25);
+    const costs = await a.from("course_costs").select("course_id, cost_usd");
+    expect(costs.data).toEqual([{ course_id: courseOfA, cost_usd: 1.25 }]);
+    expect((await users[1]!.client.from("course_costs").select("course_id")).data).toEqual([]);
+  });
+
+  it("borne le budget et refuse un second cours en préparation", async () => {
+    const a = users[0]!;
+    const tooMuch = await a.client
+      .from("profiles")
+      .update({ monthly_budget_usd: 9999 })
+      .eq("id", a.id);
+    expect(tooMuch.error).not.toBeNull();
+    const draft = {
+      user_id: a.id,
+      title: "En préparation",
+      source_kind: "text",
+      mode: "whisper" as const,
+      tier: "eco" as const,
+      quality: "standard" as const,
+      ambience: "rain",
+    };
+    // `courseOfA` est déjà « queued » : la base refuse un deuxième cours actif.
+    const second = await admin.from("courses").insert(draft);
+    expect(second.error?.message).toContain("courses_one_active_per_user");
+  });
+
   it("limite la progression d'écoute à ses propres cours", async () => {
     const [a, b] = [users[0]!, users[1]!];
     const own = await a.client

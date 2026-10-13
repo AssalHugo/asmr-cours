@@ -23,6 +23,9 @@ function rows<T>(
 
 const asJson = (value: unknown) => value as Json;
 
+const monthStart = (at: Date) =>
+  new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)).toISOString();
+
 /**
  * Dépôt du pipeline sur Supabase, avec la clé secrète (contourne la RLS) :
  * chaque accès à un cours est donc filtré par `user_id`.
@@ -175,24 +178,22 @@ export function createSupabaseRepo(db: AdminClient): PipelineRepo {
         }),
       );
     },
+    // Sommes faites en SQL : une lecture ligne à ligne serait tronquée à 1 000 lignes.
     async monthlySpend(userId, at) {
-      const monthStart = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)).toISOString();
-      const found = rows(
-        "monthlySpend",
-        await db
-          .from("usage_events")
-          .select("cost_usd")
-          .eq("user_id", userId)
-          .gte("created_at", monthStart),
+      return Number(
+        check(
+          "monthlySpend",
+          await db.rpc("spend_since", { p_since: monthStart(at), p_user_id: userId }),
+        ),
       );
-      return found.reduce((sum, r) => sum + Number(r.cost_usd), 0);
+    },
+    async globalMonthlySpend(at) {
+      return Number(
+        check("globalMonthlySpend", await db.rpc("spend_since", { p_since: monthStart(at) })),
+      );
     },
     async courseCost(courseId) {
-      const found = rows(
-        "courseCost",
-        await db.from("usage_events").select("cost_usd").eq("course_id", courseId),
-      );
-      return found.reduce((sum, r) => sum + Number(r.cost_usd), 0);
+      return Number(check("courseCost", await db.rpc("course_cost", { p_course_id: courseId })));
     },
     async measuredCourses(userId, voiceId, mode) {
       if (!voiceId) return [];

@@ -2,7 +2,7 @@
 
 import { Loader2, Sparkles, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   discardVoiceDraft,
@@ -44,6 +44,19 @@ export function VoiceStudio({
   const [draft, setDraft] = useState<VoiceDraft | null>(null);
   const [trying, setTrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Un brouillon laissé en plan en quittant la page est supprimé chez Gemini, qui plafonne
+  // le nombre de voix stockées par projet.
+  const pendingDraft = useRef<string | null>(null);
+  useEffect(() => {
+    pendingDraft.current = draft?.providerVoiceId ?? null;
+  }, [draft]);
+  useEffect(
+    () => () => {
+      if (pendingDraft.current) void discardVoiceDraft(pendingDraft.current);
+    },
+    [],
+  );
 
   async function tryIt() {
     setTrying(true);
@@ -220,13 +233,14 @@ export function VoiceStudio({
             <div className="flex gap-2">
               <Button
                 className="flex-1"
-                disabled={pending || label.trim().length === 0}
+                // Pas pendant un nouvel essai : il supprime justement ce brouillon.
+                disabled={pending || trying || label.trim().length === 0}
                 onClick={keep}
               >
                 {pending ? <Loader2 className="animate-spin" aria-hidden /> : null}
                 Garder cette voix
               </Button>
-              <Button variant="ghost" disabled={pending} onClick={drop}>
+              <Button variant="ghost" disabled={pending || trying} onClick={drop}>
                 Abandonner
               </Button>
             </div>

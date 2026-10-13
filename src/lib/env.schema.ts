@@ -18,41 +18,66 @@ const emailList = z.preprocess(
 
 const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
 
-export const ServerEnvSchema = z.object({
-  APP_ENV: z.enum(["dev", "prod"]).default("dev"),
-  AI_MODE: z.enum(["live", "mock"]).default("live"),
-  /** `inline` exécute le pipeline dans le process Next (dev, E2E), sans Trigger.dev. */
-  JOBS_MODE: z.enum(["trigger", "inline"]).default("trigger"),
-  /** `local` stocke les fichiers dans `.data/storage` (dev, E2E), sans R2. */
-  STORAGE_MODE: z.enum(["r2", "local"]).default("r2"),
-  APP_URL: z.url().default("http://localhost:3000"),
+const optionalPositive = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.coerce.number().positive().optional(),
+);
 
-  NEXT_PUBLIC_SUPABASE_URL: optionalString,
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
-  SUPABASE_SECRET_KEY: optionalString,
-  ALLOWED_EMAILS: emailList,
+export const ServerEnvSchema = z
+  .object({
+    APP_ENV: z.enum(["dev", "prod"]).default("dev"),
+    AI_MODE: z.enum(["live", "mock"]).default("live"),
+    /** `inline` exécute le pipeline dans le process Next (dev, E2E), sans Trigger.dev. */
+    JOBS_MODE: z.enum(["trigger", "inline"]).default("trigger"),
+    /** `local` stocke les fichiers dans `.data/storage` (dev, E2E), sans R2. */
+    STORAGE_MODE: z.enum(["r2", "local"]).default("r2"),
+    APP_URL: z.url().default("http://localhost:3000"),
 
-  GEMINI_API_KEY: optionalString,
-  GEMINI_MODEL_TEXT: z.string().default("gemini-3.8-flash"),
-  GEMINI_MODEL_CHECK: z.string().default("gemini-3.5-flash-lite"),
-  GEMINI_MODEL_TTS: z.string().default("gemini-3.8-flash-tts"),
-  GEMINI_MODEL_TTS_LITE: z.string().default("gemini-3.8-flash-lite-tts"),
+    NEXT_PUBLIC_SUPABASE_URL: optionalString,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
+    SUPABASE_SECRET_KEY: optionalString,
+    ALLOWED_EMAILS: emailList,
 
-  R2_ACCOUNT_ID: optionalString,
-  R2_ACCESS_KEY_ID: optionalString,
-  R2_SECRET_ACCESS_KEY: optionalString,
-  R2_BUCKET: z.string().default("murmure-audio"),
+    GEMINI_API_KEY: optionalString,
+    GEMINI_MODEL_TEXT: z.string().default("gemini-3.8-flash"),
+    GEMINI_MODEL_CHECK: z.string().default("gemini-3.5-flash-lite"),
+    GEMINI_MODEL_TTS: z.string().default("gemini-3.8-flash-tts"),
+    GEMINI_MODEL_TTS_LITE: z.string().default("gemini-3.8-flash-lite-tts"),
 
-  TRIGGER_SECRET_KEY: optionalString,
-  TRIGGER_PROJECT_REF: optionalString,
+    R2_ACCOUNT_ID: optionalString,
+    R2_ACCESS_KEY_ID: optionalString,
+    R2_SECRET_ACCESS_KEY: optionalString,
+    R2_BUCKET: z.string().default("murmure-audio"),
 
-  MONTHLY_BUDGET_USD: z.coerce.number().positive().default(10),
-  TTS_STANDARD_CONCURRENCY: positiveInt(4),
-  MAX_UPLOAD_MB: positiveInt(50),
-  MAX_PDF_PAGES: positiveInt(80),
-  MAX_SOURCE_CHARS: positiveInt(150_000),
-  DAILY_COURSE_LIMIT: positiveInt(5),
-});
+    TRIGGER_SECRET_KEY: optionalString,
+    TRIGGER_PROJECT_REF: optionalString,
+
+    /** Budget mensuel donné à chaque nouveau compte (réglable ensuite, 500 $ au plus). */
+    MONTHLY_BUDGET_USD: z.coerce.number().positive().max(500).default(10),
+    /** Plafond mensuel tous comptes confondus : sans lui, seule la somme des budgets borne la clé Gemini. */
+    GLOBAL_MONTHLY_BUDGET_USD: optionalPositive,
+    TTS_STANDARD_CONCURRENCY: positiveInt(4),
+    MAX_UPLOAD_MB: positiveInt(50),
+    MAX_PDF_PAGES: positiveInt(80),
+    MAX_SOURCE_CHARS: positiveInt(150_000),
+    DAILY_COURSE_LIMIT: positiveInt(5),
+  })
+  // Les modes sans clés servent le dev et les E2E : `/api/dev-storage` n'isole pas les comptes.
+  .superRefine((value, ctx) => {
+    if (value.APP_ENV !== "prod") return;
+    const forbidden = [
+      value.AI_MODE === "mock" && "AI_MODE=mock",
+      value.JOBS_MODE === "inline" && "JOBS_MODE=inline",
+      value.STORAGE_MODE === "local" && "STORAGE_MODE=local",
+    ].filter((v) => v !== false);
+    if (forbidden.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["APP_ENV"],
+        message: `APP_ENV=prod interdit ${forbidden.join(", ")}.`,
+      });
+    }
+  });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 

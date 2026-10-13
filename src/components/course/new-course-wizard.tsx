@@ -145,7 +145,9 @@ export function NewCourseWizard(props: WizardProps) {
         ))}
       </ol>
 
-      {step === 0 ? <SourceStep limits={props.limits} onPrepared={onPrepared} /> : null}
+      {step === 0 ? (
+        <SourceStep limits={props.limits} previous={prepared} onPrepared={onPrepared} />
+      ) : null}
 
       {step === 1 && prepared ? (
         <form
@@ -417,9 +419,12 @@ function ErrorNote({ message }: { message: string }) {
 
 function SourceStep({
   limits,
+  previous,
   onPrepared,
 }: {
   limits: WizardProps["limits"];
+  /** Dépôt précédent, quand on revient changer de source : il est remplacé, pas accumulé. */
+  previous: PreparedSource | null;
   onPrepared: (source: PreparedSource) => void;
 }) {
   const [tab, setTab] = useState<SourceTab>("pdf");
@@ -439,8 +444,12 @@ function SourceStep({
     files.sort((a, b) => a.name.localeCompare(b.name, "fr", { numeric: true }));
     try {
       setBusy({ label: "Envoi", ratio: 0 });
-      const uploaded = await uploadFiles(tab, files, ({ loaded, total }) =>
-        setBusy({ label: "Envoi", ratio: total > 0 ? loaded / total : 0 }),
+      const uploaded = await uploadFiles(
+        tab,
+        files,
+        ({ loaded, total }) => setBusy({ label: "Envoi", ratio: total > 0 ? loaded / total : 0 }),
+        undefined,
+        previous?.courseId,
       );
       setBusy({ label: "Lecture du document", ratio: null });
       const result = await prepareSource({
@@ -466,7 +475,11 @@ function SourceStep({
   async function sendText() {
     setError(null);
     setBusy({ label: "Lecture du texte", ratio: null });
-    const result = await prepareSource({ kind: "text", text });
+    const result = await prepareSource({
+      kind: "text",
+      text,
+      courseId: previous?.kind === "text" ? previous.courseId : undefined,
+    });
     setBusy(null);
     if (!result.ok) return setError(result.message);
     onPrepared(result.data);

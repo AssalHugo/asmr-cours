@@ -14,6 +14,6 @@ export const remixTask = schemaTask({
   run: (payload) => remixCourse(triggerDeps(), payload),
   catchError: catchPipelineError,
   onFailure: async ({ payload, error }) => {
-    await failCourse(triggerDeps(), payload.courseId, payload.userId, error);
+    await failCourse(triggerDeps(), payload.courseId, payload.userId, error, { keepReady: true });
   },
 });

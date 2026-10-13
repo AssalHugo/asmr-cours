@@ -40,7 +40,9 @@ async function runInline(job: Job): Promise<void> {
     else await remixCourse(deps, job.payload);
   } catch (error) {
     console.error(`[murmure] ${job.kind} en échec`, error);
-    await failCourse(deps, job.payload.courseId, job.payload.userId, error).catch(() => undefined);
+    await failCourse(deps, job.payload.courseId, job.payload.userId, error, {
+      keepReady: job.kind === "remix",
+    }).catch(() => undefined);
   }
 }
 

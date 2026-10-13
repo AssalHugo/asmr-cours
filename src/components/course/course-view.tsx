@@ -119,7 +119,7 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
   }, [run.status, course.title, router]);
 
   function act(
-    action: () => Promise<ActionResult<{ courseId: string }> | ActionResult>,
+    action: () => Promise<ActionResult<{ courseId: string; notice?: string }> | ActionResult>,
     done?: () => void,
   ) {
     startTransition(async () => {
@@ -127,6 +127,9 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
       if (!result.ok) {
         toast.error(result.message);
         return;
+      }
+      if (result.data && "notice" in result.data && result.data.notice) {
+        toast(result.data.notice);
       }
       done?.();
       router.refresh();
@@ -190,6 +193,13 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
 
       {run.status === "ready" ? (
         <section className="space-y-6">
+          {owned && course.error ? (
+            // Un changement d'ambiance qui échoue laisse le cours écoutable, avec ce message.
+            <p role="alert" className="text-sand flex items-start gap-2 text-sm">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+              {course.error}
+            </p>
+          ) : null}
           <div className="flex items-center gap-5">
             <Link href={`/play/${course.id}`} aria-label={`Écouter ${course.title}`}>
               <BreathOrb size="md">
