@@ -12,9 +12,7 @@ type Client = SupabaseClient<Database>;
 
 /** Ne tourne que contre le Supabase local (`pnpm db:start`), jamais contre un projet hébergé. */
 describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
-  const admin: Client = createClient<Database>(url ?? "", secretKey ?? "", {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  let admin: Client;
   const users: { id: string; client: Client }[] = [];
   let courseOfA = "";
 
@@ -36,6 +34,9 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
   }
 
   beforeAll(async () => {
+    admin = createClient<Database>(url ?? "", secretKey ?? "", {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
     users.push(await signUp(), await signUp());
     const a = users[0]!;
     const course = await admin
@@ -70,7 +71,9 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
   });
 
   afterAll(async () => {
-    for (const u of users) await admin.auth.admin.deleteUser(u.id);
+    if (admin) {
+      for (const u of users) await admin.auth.admin.deleteUser(u.id);
+    }
   });
 
   it("crée le profil à l'inscription, avec les défauts", async () => {
