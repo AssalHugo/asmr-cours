@@ -10,7 +10,7 @@ Avant de commencer, l'app tourne déjà sur ta machine sans aucune clé : voir �
 - Docker, pour le Supabase local.
 - Des comptes : [Google AI Studio](https://aistudio.google.com/), [Supabase](https://supabase.com/dashboard), [Cloudflare](https://dash.cloudflare.com/), [Trigger.dev](https://cloud.trigger.dev/), [Vercel](https://vercel.com/).
 
-Les variables se renseignent dans `.env.local` (copie de `.env.example`). Ne mets jamais de clé dans une variable `NEXT_PUBLIC_*` autre que les deux de Supabase.
+Les variables se renseignent dans `.env.local` (copie de `.env.example`). Ne mets jamais de clé dans une variable `NEXT_PUBLIC_*` autre que les deux de Supabase et les deux de Google Drive (étape 9), faites pour le navigateur.
 
 ## 1. Gemini
 
@@ -146,6 +146,7 @@ Pour développer contre Trigger.dev plutôt qu'en mode inline : `JOBS_MODE=trigg
    | R2 (4 variables)                                    | étape 3                                                       |
    | `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF`         | étape 4                                                       |
    | `MONTHLY_BUDGET_USD`, `MAX_*`, `DAILY_COURSE_LIMIT` | seulement si tu changes les défauts                           |
+   | `NEXT_PUBLIC_GOOGLE_*` (2 variables)                | étape 9, si tu veux l'import Google Drive                     |
 
    Pour pousser le contenu d'un fichier d'un coup : `vercel env add <NOM> production < valeur.txt`, ou colle le fichier `.env` dans l'éditeur du tableau de bord.
 
@@ -204,3 +205,20 @@ Les voix appartiennent à un projet Gemini : refais cette étape pour le projet 
 5. Un cours de vingt pages en **Éco**. Le critère de la spec : coût réel ≤ estimation + 20 %.
 
 Points à contrôler sur Safari iOS, jamais testés jusqu'ici : lecture écran verrouillé (le lecteur y passe d'office sur le pré-mix), commandes de l'écran verrouillé, et lecture hors-ligne.
+
+## 9. Google Drive (facultatif)
+
+Ajoute un bouton « Choisir dans Google Drive » à l'étape Source (PDF et photos ; les Google Docs et Slides sont convertis en PDF). Tout se passe dans le navigateur : le fichier choisi est téléchargé puis déposé comme un fichier local. L'app ne demande que le scope `drive.file`, c'est-à-dire l'accès aux seuls fichiers choisis dans le sélecteur.
+
+1. Dans la [console Google Cloud](https://console.cloud.google.com/), choisis un projet (celui de la clé Gemini convient) et active **Google Drive API** et **Google Picker API** (**API et services → Bibliothèque**).
+2. **Écran de consentement OAuth** : type _Externe_, scope `…/auth/drive.file`. Tant que l'app reste en mode _Test_, ajoute les adresses de `ALLOWED_EMAILS` comme utilisateurs de test ; ce scope ne demande pas de validation par Google pour passer en production.
+3. **Identifiants → Créer → ID client OAuth**, type _Application Web_. Dans _Origines JavaScript autorisées_ : `https://<ton-domaine>` et `http://localhost:3000`. Aucune URI de redirection.
+4. **Identifiants → Créer → Clé API**. Restreins-la aux mêmes sites (référents HTTP) et à l'API Picker.
+5. Renseigne les deux valeurs, en local et sur Vercel, puis redéploie (elles entrent dans la politique de contenu, calculée au démarrage) :
+
+   ```
+   NEXT_PUBLIC_GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+   NEXT_PUBLIC_GOOGLE_API_KEY=
+   ```
+
+**À vérifier à cette étape.** Rien de ce parcours n'a pu être exécuté sans identifiants : ouverture de la fenêtre Google au clic (bloqueur de pop-ups, Safari iOS et app installée compris), affichage du sélecteur sous la politique de contenu de `next.config.ts`, téléchargement d'un PDF et conversion d'un Google Docs. Les appels sont isolés dans `src/components/upload/drive-picker.ts`. La conversion par Drive est plafonnée à 10 Mo.

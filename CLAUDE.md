@@ -55,6 +55,7 @@ Règles Next.js propres à cette version : @AGENTS.md
 - **Tarifs** : identiques au §3.2 de la spec, doublement au 01/01/2027 confirmé.
 - **Trigger.dev 4.7** : `schemaTask`, `queue({ name, concurrencyLimit: 1 })` + `concurrencyKey` au déclenchement, `wait.for`, `metadata.set`, `auth.createPublicToken`. Extension `ffmpeg({ version: "7" })`, condition de build `react-server` pour `server-only`. Jamais déployé à ce jour.
 - **Serwist** : paquet `@serwist/turbopack` (Next 16 compile avec Turbopack). Le service worker est servi par `src/app/serwist/[path]/route.ts`, actif en production seulement, et compilé à part (`tsconfig.sw.json`).
+- **Google Drive** (facultatif, `NEXT_PUBLIC_GOOGLE_*`) : tout côté navigateur dans `src/components/upload/drive-picker.ts` — jeton GIS (`drive.file`), sélecteur Picker, téléchargement `alt=media` (ou `export` en PDF pour Docs et Slides), puis dépôt par `uploadFiles`. Les origines Google n'entrent dans la CSP que si les deux variables sont définies.
 - **FFmpeg** : 7.0.2 en local (`ffmpeg-static`). `loudnorm` coûte le double en stéréo : la mise au niveau se fait en mono, la stéréo ensuite. `acrossfade` ne sort rien si ses deux entrées viennent du même flux découpé par `atrim` : ouvrir le fichier deux fois.
 
 ## Tests
@@ -65,4 +66,4 @@ Règles Next.js propres à cette version : @AGENTS.md
 
 ## À valider avec de vraies clés
 
-Rien de ce qui suit n'a pu être exécuté : appels Gemini réels (dont le champ `language` de la synthèse et la balise `<whispers>` en Batch), TTS par Batch, déploiement Trigger.dev et Vercel, R2 (CORS compris), Safari iOS. L'ordre des vérifications est dans `docs/SETUP.md`.
+Rien de ce qui suit n'a pu être exécuté : appels Gemini réels (dont le champ `language` de la synthèse et la balise `<whispers>` en Batch), TTS par Batch, déploiement Trigger.dev et Vercel, R2 (CORS compris), import Google Drive, Safari iOS. L'ordre des vérifications est dans `docs/SETUP.md`.
