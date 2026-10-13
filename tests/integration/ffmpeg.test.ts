@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ambiencePrepareArgs } from "@/lib/audio/ambience-prepare";
 import { renderFfmetadata } from "@/lib/audio/chapters";
 import { probe, runFfmpeg, runFfmpegVerbose } from "@/lib/audio/ffmpeg";
 import { encodeVoiceArgs, masterArgs } from "@/lib/audio/master";
@@ -103,5 +104,42 @@ describe("FFmpeg réel", () => {
     expect(parseWav(await readFile(file("joined.wav"))).durationMs).toBe(
       trimmed.durationMs * 2 + 1500,
     );
+  });
+
+  it("prépare une ambiance : boucle sans couture, −28 LUFS, FLAC et AAC", async () => {
+    await runFfmpeg(noiseBedArgs(file("raw.flac"), { color: "brown", seconds: 20, codec: "flac" }));
+    await runFfmpeg(
+      ambiencePrepareArgs(file("raw.flac"), file("amb.flac"), {
+        sourceSeconds: 20,
+        target: "master",
+      }),
+    );
+    await runFfmpeg(
+      ambiencePrepareArgs(file("raw.flac"), file("amb.m4a"), { sourceSeconds: 20, target: "web" }),
+    );
+    expect(await probe(file("amb.flac"))).toMatchObject({
+      codec: "flac",
+      sampleRate: 48_000,
+      channels: 2,
+    });
+    const web = await probe(file("amb.m4a"));
+    expect(web).toMatchObject({ codec: "aac", channels: 2 });
+    // 20 s moins les 3 s de recouvrement fin → début.
+    expect(Math.abs(web.durationMs - 17_000)).toBeLessThan(150);
+
+    const { stderr } = await runFfmpegVerbose([
+      "-i",
+      file("amb.flac"),
+      "-af",
+      "ebur128",
+      "-f",
+      "null",
+      "-",
+    ]);
+    const lufs = Number(
+      /I:\s+(-?\d+(?:\.\d+)?) LUFS/.exec(stderr.slice(stderr.lastIndexOf("Summary")))?.[1],
+    );
+    expect(lufs).toBeGreaterThan(-30);
+    expect(lufs).toBeLessThan(-26);
   });
 });

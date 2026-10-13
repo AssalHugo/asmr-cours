@@ -107,12 +107,13 @@ export async function probe(path: string): Promise<ProbeResult> {
       codec_name?: string;
       sample_rate?: string;
       channels?: number;
+      duration?: string;
     }[];
     chapters?: { start_time?: string; end_time?: string; tags?: { title?: string } }[];
   };
   const audio = data.streams?.find((s) => s.codec_type === "audio");
   return {
-    durationMs: Math.round(Number(data.format?.duration ?? 0) * 1000),
+    durationMs: Math.round((Number(data.format?.duration ?? audio?.duration) || 0) * 1000),
     sampleRate: Number(audio?.sample_rate ?? 0),
     channels: audio?.channels ?? 0,
     codec: audio?.codec_name ?? "",

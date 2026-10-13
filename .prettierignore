@@ -5,3 +5,10 @@ docs/SPEC.md
 supabase/.temp
 public/sw.js
 tests/fixtures
+test-results
+playwright-report
+.data
+.trigger
+assets
+src/lib/supabase/database.types.ts
+supabase/config.toml

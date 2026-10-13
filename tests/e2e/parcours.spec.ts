@@ -149,6 +149,7 @@ test("télécharge le cours et le lit sans réseau", async ({ page, context }) =
 
   // Page de repli hors-ligne : elle mène au cours téléchargé.
   // (`page.goto` ne navigue pas quand Playwright simule l'absence de réseau.)
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   await page.evaluate(() => location.assign("/settings"));
   await expect(page.getByRole("heading", { name: "Tu es hors-ligne" })).toBeVisible();
   await page.getByRole("link", { name: "Photosynthèse et respiration" }).click();
@@ -176,4 +177,28 @@ test("refait le pré-mix avec une autre ambiance, puis supprime le cours", async
   await page.getByRole("button", { name: "Supprimer", exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByRole("heading", { name: "Rien à écouter pour l'instant" })).toBeVisible();
+});
+
+test("dépose un PDF, l'analyse et en tire un cours à trois chapitres", async ({ page }) => {
+  await page.goto("/new");
+  // Étape 1 : envoi direct vers le stockage, puis lecture du document côté serveur.
+  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/cours-3-pages.pdf");
+  await expect(page.getByLabel("Titre")).toHaveValue("cours 3 pages");
+  await page.getByText("Bruit rose", { exact: true }).click();
+  await page.getByRole("button", { name: "Voir l'estimation" }).click();
+
+  // Ce PDF n'a presque pas de texte : il est traité comme un scan, l'estimation est large.
+  await expect(page.getByText("Estimation large")).toBeVisible();
+  await page.getByText("Express · Standard", { exact: true }).click();
+  await page.getByRole("button", { name: "Générer" }).click();
+
+  // Le titre laissé tel quel est remplacé par celui que l'extraction lit dans le cours.
+  await expect(page.getByRole("link", { name: /^Écouter La mémoire/ })).toBeVisible({
+    timeout: 80_000,
+  });
+  await expect(
+    page.getByRole("heading", { name: "La mémoire : encodage, stockage, récupération" }),
+  ).toBeVisible();
+  await expect(page.getByText(/^Chapitre \d/)).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "Sommeil et consolidation" })).toBeVisible();
 });

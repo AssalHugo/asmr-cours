@@ -44,6 +44,21 @@ Règles Next.js propres à cette version : @AGENTS.md
 
 ## Constats sur les API externes
 
-- **Gemini TTS** : Interactions API (`ai.interactions.create`, clés snake_case), pas `generateContent`. Voix dans `generation_config.speech_config: [{ voice }]`, style dans l'annotation `speech_metadata.style` du bloc texte. Sortie unaire WAV 24 kHz mono 16 bits.
-- **Voice design** : `ai.voices.create({ type: "prompted", store: true })` → id `voice_…`.
+- **Gemini** : tout passe par l'Interactions API (`ai.interactions.create`, clés snake_case), y compris le texte structuré (`response_format: { type: "text", mime_type: "application/json", schema }`) et le thinking (`generation_config.thinking_level` : `low` au minimum pour Flash, `minimal` pour Flash-Lite). Usage dans `interaction.usage` (`total_input_tokens`, `total_output_tokens`, `total_thought_tokens`).
+- **Gemini TTS** : voix dans `generation_config.speech_config: [{ voice }]`, style dans l'annotation `speech_metadata.style` du bloc texte. Sortie unaire WAV 24 kHz mono 16 bits dans `interaction.output_audio`.
+- **Batch** : format generateContent (JSONL, `speechConfig.voiceConfig`), sans style par tour. Le TTS en batch n'est pas confirmé par la doc : à valider avec `pnpm gemini:smoke --batch` ; repli automatique sur l'API standard.
+- **Voice design** : `ai.voices.create({ store: true, voice: { type: "prompted", prompted: { input } } })` → id `voice_…`.
 - **Tarifs** : identiques au §3.2 de la spec, doublement au 01/01/2027 confirmé.
+- **Trigger.dev 4.7** : `schemaTask`, `queue({ name, concurrencyLimit: 1 })` + `concurrencyKey` au déclenchement, `wait.for`, `metadata.set`, `auth.createPublicToken`. Extension `ffmpeg({ version: "7" })`, condition de build `react-server` pour `server-only`. Jamais déployé à ce jour.
+- **Serwist** : paquet `@serwist/turbopack` (Next 16 compile avec Turbopack). Le service worker est servi par `src/app/serwist/[path]/route.ts`, actif en production seulement, et compilé à part (`tsconfig.sw.json`).
+- **FFmpeg** : 7.0.2 en local (`ffmpeg-static`). `acrossfade` ne sort rien si ses deux entrées viennent du même flux découpé par `atrim` : ouvrir le fichier deux fois.
+
+## Tests
+
+- `pnpm test` : unitaires + intégration (pipeline complet en mémoire avec vrai FFmpeg, RLS contre Supabase local si `.env.local` existe). Environ une minute.
+- `pnpm test:e2e` : build de production sur le port 3100, navigateur avec AAC (Chrome ou Brave), Supabase local. Connexion par lien magique fabriqué avec la clé secrète locale, sans contournement dans l'app.
+- `page.goto` ne navigue pas quand Playwright simule le hors-ligne : passer par `location.assign`.
+
+## À valider avec de vraies clés
+
+Rien de ce qui suit n'a pu être exécuté : appels Gemini réels, TTS par Batch, déploiement Trigger.dev et Vercel, R2 (CORS compris), Safari iOS. L'ordre des vérifications est dans `docs/SETUP.md`.
