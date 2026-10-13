@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "murmure-dev",
+      "runtimeExecutable": "/home/hugo/.local/bin/pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3000
+    }
+  ]
+}

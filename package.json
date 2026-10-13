@@ -23,6 +23,8 @@
     "voices:seed": "tsx scripts/voices-seed.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.55.0",
@@ -45,10 +47,10 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "supabase": "^2.120.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
-    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.3"
   },
   "packageManager": "pnpm@12.11.2",
