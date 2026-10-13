@@ -70,7 +70,7 @@ export async function withRetry<T>(fn: (attempt: number) => Promise<T>, opts: Re
 
       if (opts.onRetry) {
         opts.onRetry(error, attempt, delayMs);
-      } else if (opts.logRetry ?? (process.env.NODE_ENV !== "test")) {
+      } else if (opts.logRetry ?? process.env.NODE_ENV !== "test") {
         const status = httpStatus(error);
         const statusStr = status ? ` HTTP ${status}` : "";
         const tag = opts.label ? `[${opts.label}] ` : "";

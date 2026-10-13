@@ -48,7 +48,11 @@ export async function synthesizeSpeech(req: SpeechRequest): Promise<SpeechResult
               ],
             },
           ],
-          response_format: { type: "audio", mime_type: "audio/wav", sample_rate: DEFAULT_SAMPLE_RATE },
+          response_format: {
+            type: "audio",
+            mime_type: "audio/wav",
+            sample_rate: DEFAULT_SAMPLE_RATE,
+          },
           generation_config: { speech_config: [{ voice: req.voiceId }] },
           store: false,
         },

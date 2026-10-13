@@ -38,8 +38,12 @@ async function main() {
     ? `présente (***${e.GEMINI_API_KEY.slice(-4)})`
     : "non renseignée";
   console.log(`• Clé Gemini    : ${keyPreview}`);
-  console.log(`• Modèles texte : ${e.GEMINI_MODEL_TEXT} (rédaction) | ${e.GEMINI_MODEL_CHECK} (contrôle)`);
-  console.log(`• Modèles TTS   : ${e.GEMINI_MODEL_TTS_LITE} (éco) | ${e.GEMINI_MODEL_TTS} (standard)`);
+  console.log(
+    `• Modèles texte : ${e.GEMINI_MODEL_TEXT} (rédaction) | ${e.GEMINI_MODEL_CHECK} (contrôle)`,
+  );
+  console.log(
+    `• Modèles TTS   : ${e.GEMINI_MODEL_TTS_LITE} (éco) | ${e.GEMINI_MODEL_TTS} (standard)`,
+  );
   console.log(
     `• Options       : ${
       [flags.has("--voice") ? "--voice" : null, flags.has("--batch") ? "--batch" : null]
@@ -75,7 +79,9 @@ async function main() {
     const cost = costUsd(model, tier, usage, now);
     total += cost;
     const durSec = (durationMs / 1000).toFixed(1);
-    console.log(`✓ ${step} (${model}) [${durSec}s] — ${JSON.stringify(usage)} — ${cost.toFixed(5)} $\n`);
+    console.log(
+      `✓ ${step} (${model}) [${durSec}s] — ${JSON.stringify(usage)} — ${cost.toFixed(5)} $\n`,
+    );
   };
 
   const { result: extracted, durationMs: extractDur } = await runStep(
@@ -147,7 +153,9 @@ async function main() {
           "murmure-smoke",
         ),
     );
-    console.log(`✓ batch soumis : ${batchSub.jobId} — sondage toutes les 30 s (Ctrl+C pour abandonner)`);
+    console.log(
+      `✓ batch soumis : ${batchSub.jobId} — sondage toutes les 30 s (Ctrl+C pour abandonner)`,
+    );
     let poll = 1;
     for (;;) {
       console.log(`⏳ Sondage batch #${poll}...`);
