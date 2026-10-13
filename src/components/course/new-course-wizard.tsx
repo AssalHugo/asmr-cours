@@ -451,6 +451,14 @@ function SourceStep({
   const [busy, setBusy] = useState<null | { label: string; ratio: number | null }>(null);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Annule un téléchargement Drive en cours lors du démontage du composant.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   // Scripts Google chargés d'avance : au clic, la fenêtre de connexion s'ouvre sans délai.
   useEffect(() => {
@@ -460,6 +468,9 @@ function SourceStep({
   async function sendFromDrive() {
     if (!drive || tab === "text") return;
     setError(null);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       setBusy({ label: "Google Drive", ratio: null });
       const files = await pickFromDrive(
@@ -470,16 +481,18 @@ function SourceStep({
           maxBytes: limits.maxUploadMb * 1024 * 1024,
         },
         (ratio) => setBusy({ label: "Récupération depuis Drive", ratio }),
+        controller.signal,
       );
       if (files) return await sendFiles(files);
     } catch (cause) {
+      if (controller.signal.aborted) return;
       setError(
         cause instanceof UploadError
           ? cause.message
           : "La récupération depuis Google Drive a échoué. Réessaie.",
       );
     }
-    setBusy(null);
+    if (!controller.signal.aborted) setBusy(null);
   }
 
   async function sendFiles(files: File[]) {
@@ -546,6 +559,7 @@ function SourceStep({
         value={tab}
         columns={3}
         onChange={(value) => {
+          abortRef.current?.abort();
           setTab(value);
           setError(null);
         }}

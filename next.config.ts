@@ -32,7 +32,13 @@ function contentSecurityPolicy(): string {
     r2,
     trigger,
     dev ? "ws:" : null,
-    drive ? "https://www.googleapis.com" : null,
+    ...(drive
+      ? [
+          "https://www.googleapis.com",
+          "https://*.googleusercontent.com",
+          "https://accounts.google.com",
+        ]
+      : []),
   ].filter(Boolean);
   return [
     "default-src 'self'",
@@ -43,8 +49,10 @@ function contentSecurityPolicy(): string {
     `media-src 'self' data: blob: ${r2}`,
     `connect-src ${connect.join(" ")}`,
     "worker-src 'self'",
-    // Le sélecteur Drive s'affiche dans un cadre servi par Google.
-    drive ? "frame-src https://docs.google.com https://drive.google.com" : "frame-src 'none'",
+    // Le sélecteur Drive et GIS s'affichent dans des cadres servis par Google.
+    drive
+      ? "frame-src https://docs.google.com https://drive.google.com https://accounts.google.com"
+      : "frame-src 'none'",
     "manifest-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

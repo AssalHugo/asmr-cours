@@ -62,11 +62,12 @@ export function driveDownload(kind: DriveKind, pick: DrivePick): DriveDownload |
   const mimeType = pick.mimeType.toLowerCase();
   const name = pick.name.trim() || "Sans titre";
   if (kind === "pdf" && EXPORTED_AS_PDF.includes(mimeType)) {
+    const clean = name.replace(/\.pdf$/i, "").trim() || "Sans titre";
     return {
       url: `${DRIVE_API}/${id}/export?mimeType=application%2Fpdf`,
       type: "application/pdf",
       // Le titre du cours est tiré du nom du fichier, borné à 200 caractères côté serveur.
-      name: `${name.slice(0, 190)}.pdf`,
+      name: `${clean.slice(0, 190)}.pdf`,
     };
   }
   if (!(mimeType in UPLOAD_MIME[kind])) return null;

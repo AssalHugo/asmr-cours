@@ -64,6 +64,11 @@ declare global {
 }
 
 function loadScript(src: string): Promise<void> {
+  if (typeof window !== "undefined") {
+    if (src === GAPI_SRC && window.gapi) return Promise.resolve();
+    if (src === GIS_SRC && window.google?.accounts) return Promise.resolve();
+    if (document.querySelector(`script[src="${src}"]`)) return Promise.resolve();
+  }
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = src;
@@ -117,6 +122,14 @@ function requestToken(google: GoogleApis, clientId: string): Promise<string | nu
         client_id: clientId,
         scope: DRIVE_SCOPE,
         callback: (response) => {
+          if (response.error) {
+            if (response.error === "access_denied") return resolve(null);
+            return reject(
+              new UploadError(
+                `La connexion à Google Drive a été refusée (${response.error}). Vérifie tes identifiants.`,
+              ),
+            );
+          }
           if (!response.access_token) return resolve(null);
           const seconds = Number(response.expires_in) || 3600;
           token = { value: response.access_token, expiresAt: Date.now() + (seconds - 60) * 1000 };

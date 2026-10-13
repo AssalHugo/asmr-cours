@@ -51,6 +51,12 @@ describe("import Google Drive", () => {
       type: "application/pdf",
       name: "Histoire - chapitre 2.pdf",
     });
+    const docWithPdf = DrivePick.parse({
+      id: "xyz",
+      name: "Histoire.pdf",
+      mimeType: "application/vnd.google-apps.document",
+    });
+    expect(driveDownload("pdf", docWithPdf)?.name).toBe("Histoire.pdf");
     expect(driveDownload("images", doc)).toBeNull();
   });
 
