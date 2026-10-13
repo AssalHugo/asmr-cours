@@ -5,7 +5,8 @@ import { BreathOrb } from "@/components/breath-orb";
 import { CourseCard } from "@/components/course/course-card";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { listCourses, listFlaggedCourseIds, listPlayback } from "@/lib/data";
+import { requireUser } from "@/lib/auth";
+import { listCourses, listFlaggedCourseIds, listPlayback, listSharedWithMe } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Bibliothèque" };
 
@@ -14,11 +15,13 @@ export default async function LibraryPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  const user = await requireUser();
   const { q } = await searchParams;
-  const [courses, playback, flagged] = await Promise.all([
+  const [courses, playback, flagged, shared] = await Promise.all([
     listCourses(q),
     listPlayback(),
     listFlaggedCourseIds(),
+    listSharedWithMe(user.id),
   ]);
   const searching = Boolean(q?.trim());
 
@@ -76,6 +79,9 @@ export default async function LibraryPage({
                 course={course}
                 positionMs={playback.get(course.id) ?? 0}
                 flagged={flagged.has(course.id)}
+                sharedBy={
+                  course.user_id === user.id ? null : (shared.get(course.id) ?? "un autre compte")
+                }
               />
             </li>
           ))}

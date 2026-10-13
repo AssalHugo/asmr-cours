@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const courseId = z.uuid().safeParse(request.nextUrl.searchParams.get("courseId"));
   if (!courseId.success) return NextResponse.json({ message: "Cours invalide." }, { status: 400 });
 
-  // Client de session : la RLS garantit que le cours appartient à l'utilisatrice.
+  // Client de session : la RLS ne montre que ses cours et ceux partagés avec elle.
   const supabase = await createClient();
   const { data: course } = await supabase
     .from("courses")

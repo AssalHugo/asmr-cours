@@ -42,6 +42,11 @@ export type CreateCourseInput = z.infer<typeof CreateCourseInput>;
 
 export const RemixInput = z.object({ courseId: z.uuid(), ambience, ambienceGainDb: gainDb });
 
+export const ShareInput = z.object({
+  courseId: z.uuid(),
+  email: z.string().trim().toLowerCase().pipe(z.email("Cette adresse e-mail n'est pas valide.")),
+});
+
 export const SettingsInput = z.object({
   displayName: z.string().trim().max(80),
   defaultVoiceId: z.uuid().nullable(),

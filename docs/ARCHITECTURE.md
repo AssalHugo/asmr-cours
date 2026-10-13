@@ -20,7 +20,7 @@ flowchart LR
 
 - **Next.js** sert l'interface, contrôle chaque action côté serveur (session, limites, budget) et délivre les URLs présignées. Il ne fait aucun traitement long.
 - **Trigger.dev** exécute le pipeline. FFmpeg y est installé par l'extension de build.
-- **Supabase** garde les données. Le navigateur ne peut que lire ses propres lignes (RLS) ; les écritures métier passent par le serveur avec la clé secrète, toujours filtrées par `user_id`.
+- **Supabase** garde les données. Le navigateur ne peut que lire ses propres lignes (RLS), plus les cours et sections qu'un autre compte partage avec son adresse (`course_shares`, lecture seule) ; les écritures métier passent par le serveur avec la clé secrète, toujours filtrées par `user_id`.
 - **R2** garde les fichiers. Le bucket est privé : tout accès passe par une URL présignée courte.
 
 ## Le pipeline

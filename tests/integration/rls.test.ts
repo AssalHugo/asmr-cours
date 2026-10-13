@@ -13,10 +13,10 @@ type Client = SupabaseClient<Database>;
 /** Ne tourne que contre le Supabase local (`pnpm db:start`), jamais contre un projet hébergé. */
 describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
   let admin: Client;
-  const users: { id: string; client: Client }[] = [];
+  const users: { id: string; email: string; client: Client }[] = [];
   let courseOfA = "";
 
-  async function signUp(): Promise<{ id: string; client: Client }> {
+  async function signUp(): Promise<{ id: string; email: string; client: Client }> {
     const email = `rls-${randomUUID()}@murmure.local`;
     const created = await admin.auth.admin.createUser({ email, email_confirm: true });
     if (created.error) throw created.error;
@@ -30,7 +30,7 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
       type: "email",
     });
     if (verified.error) throw verified.error;
-    return { id: created.data.user.id, client };
+    return { id: created.data.user.id, email, client };
   }
 
   beforeAll(async () => {
@@ -136,6 +136,56 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
       .from("playback_progress")
       .upsert({ user_id: a.id, course_id: courseOfA, position_ms: 1 });
     expect(spoofed.error).not.toBeNull();
+  });
+
+  it("ouvre un cours partagé à sa destinataire, en lecture seule", async () => {
+    const [a, b] = [users[0]!, users[1]!];
+    const forged = await b.client.from("course_shares").insert({
+      course_id: courseOfA,
+      owner_id: a.id,
+      owner_email: a.email,
+      recipient_email: b.email,
+    });
+    expect(forged.error).not.toBeNull();
+    expect((await b.client.from("courses").select("id")).data).toEqual([]);
+
+    const share = await admin.from("course_shares").insert({
+      course_id: courseOfA,
+      owner_id: a.id,
+      owner_email: a.email,
+      recipient_email: b.email,
+    });
+    expect(share.error).toBeNull();
+
+    expect((await b.client.from("courses").select("id")).data).toEqual([{ id: courseOfA }]);
+    expect((await b.client.from("sections").select("title")).data).toEqual([{ title: "S1" }]);
+    expect((await b.client.from("course_shares").select("owner_email")).data).toEqual([
+      { owner_email: a.email },
+    ]);
+    expect((await a.client.from("course_shares").select("recipient_email")).data).toEqual([
+      { recipient_email: b.email },
+    ]);
+    // Dépenses et écritures restent à la propriétaire.
+    expect((await b.client.from("usage_events").select("id")).data).toEqual([]);
+    expect((await b.client.from("monthly_spend").select("spent_usd")).data).toEqual([]);
+    await b.client.from("courses").update({ title: "Piraté" }).eq("id", courseOfA);
+    await b.client.from("course_shares").delete().eq("course_id", courseOfA);
+    expect((await a.client.from("courses").select("title")).data).toEqual([
+      { title: "Cours de A" },
+    ]);
+
+    const progress = await b.client
+      .from("playback_progress")
+      .upsert({ user_id: b.id, course_id: courseOfA, position_ms: 900 });
+    expect(progress.error).toBeNull();
+    const spoofed = await b.client
+      .from("playback_progress")
+      .upsert({ user_id: a.id, course_id: courseOfA, position_ms: 1 });
+    expect(spoofed.error).not.toBeNull();
+
+    await admin.from("course_shares").delete().eq("course_id", courseOfA);
+    expect((await b.client.from("courses").select("id")).data).toEqual([]);
+    expect((await b.client.from("sections").select("id")).data).toEqual([]);
   });
 
   it("ne laisse rien lire sans session", async () => {

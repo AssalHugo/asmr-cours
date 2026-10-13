@@ -95,7 +95,9 @@ describe("format Gemini", () => {
     });
     expect(JSON.stringify(custom)).not.toContain('"speech_metadata"');
 
-    const soft = JSON.parse(batchRequestLine({ ...item, voiceId: "Achernar", style: "soft and calm" }));
+    const soft = JSON.parse(
+      batchRequestLine({ ...item, voiceId: "Achernar", style: "soft and calm" }),
+    );
     expect(soft.request.contents[0].parts[0].text).toBe("Bonjour.");
   });
 

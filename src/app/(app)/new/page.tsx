@@ -14,7 +14,7 @@ export default async function NewCoursePage() {
     getProfile(user.id),
     listVoices(user.id),
     getMonthlySpend(),
-    listMeasured(),
+    listMeasured(user.id),
   ]);
   const e = env();
   const { models, mock } = billingModels();

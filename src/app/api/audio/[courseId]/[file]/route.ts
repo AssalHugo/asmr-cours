@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: { params: Promise<unknown>
   if (!params.success) return new NextResponse(null, { status: 404 });
   const { courseId, file } = params.data;
 
-  // Client de session : la RLS garantit que le cours appartient à l'utilisatrice.
+  // Client de session : la RLS ne montre que ses cours et ceux partagés avec elle.
   const supabase = await createClient();
   const { data: course } = await supabase
     .from("courses")

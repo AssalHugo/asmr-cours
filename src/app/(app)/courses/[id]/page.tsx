@@ -3,16 +3,23 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { CourseView, type SectionView } from "@/components/course/course-view";
 import { PageHeader } from "@/components/page-header";
-import { getCourse, listSections } from "@/lib/data";
+import { requireUser } from "@/lib/auth";
+import { getCourse, listSections, listSharedWithMe, listShareRecipients } from "@/lib/data";
 import { VerifyReport } from "@/lib/pipeline/schemas";
 
 export const metadata: Metadata = { title: "Cours" };
 
 export default async function CoursePage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireUser();
   const id = z.uuid().safeParse((await params).id);
   if (!id.success) notFound();
   const course = await getCourse(id.data);
   if (!course) notFound();
+  const owned = course.user_id === user.id;
+  const [recipients, sharedBy] = await Promise.all([
+    owned ? listShareRecipients(course.id, user.id) : [],
+    owned ? null : listSharedWithMe(user.id).then((shared) => shared.get(course.id) ?? null),
+  ]);
 
   const sections: SectionView[] = (await listSections(course.id)).map((s) => {
     const report = VerifyReport.safeParse(s.verify_report);
@@ -28,7 +35,11 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
 
   return (
     <main>
-      <PageHeader title={course.title} back={{ href: "/library", label: "Bibliothèque" }} />
+      <PageHeader
+        title={course.title}
+        lead={owned ? undefined : `Partagé par ${sharedBy ?? "un autre compte"}`}
+        back={{ href: "/library", label: "Bibliothèque" }}
+      />
       <CourseView
         key={`${course.status}-${course.updated_at}`}
         course={{
@@ -45,6 +56,8 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           actualUsd: Number(course.actual_cost_usd),
         }}
         sections={sections}
+        owned={owned}
+        recipients={recipients}
       />
     </main>
   );

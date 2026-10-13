@@ -1,11 +1,29 @@
 "use client";
 
-import { BellRing, Check, Loader2, Play, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import {
+  BellRing,
+  Check,
+  Loader2,
+  Play,
+  RefreshCw,
+  Share2,
+  Trash2,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { deleteCourse, regenerateSection, remixCourse, resumeCourse } from "@/app/(app)/actions";
+import {
+  deleteCourse,
+  leaveSharedCourse,
+  regenerateSection,
+  remixCourse,
+  resumeCourse,
+  shareCourse,
+  unshareCourse,
+} from "@/app/(app)/actions";
 import { BreathOrb } from "@/components/breath-orb";
 import { Choice } from "@/components/choice";
 import {
@@ -28,6 +46,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { useCourseRun } from "@/hooks/use-course-run";
 import { AMBIENCE_GAIN_RANGE, AMBIENCES, getAmbience } from "@/lib/ambiences";
@@ -61,9 +80,13 @@ export type CourseViewProps = {
     actualUsd: number;
   };
   sections: SectionView[];
+  /** `false` pour un cours reçu en partage : écoute seule, aucune action sur le cours. */
+  owned: boolean;
+  /** Adresses avec qui la propriétaire partage ce cours. */
+  recipients: string[];
 };
 
-export function CourseView({ course, sections }: CourseViewProps) {
+export function CourseView({ course, sections, owned, recipients }: CourseViewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const run = useCourseRun(course.id, {
@@ -152,10 +175,16 @@ export function CourseView({ course, sections }: CourseViewProps) {
           <p className="text-muted-foreground">
             {run.error ?? course.error ?? "Une erreur est survenue."}
           </p>
-          <Button disabled={pending} onClick={() => act(() => resumeCourse(course.id))}>
-            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
-            Reprendre
-          </Button>
+          {owned ? (
+            <Button disabled={pending} onClick={() => act(() => resumeCourse(course.id))}>
+              {pending ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw aria-hidden />
+              )}
+              Reprendre
+            </Button>
+          ) : null}
         </section>
       ) : null}
 
@@ -172,22 +201,43 @@ export function CourseView({ course, sections }: CourseViewProps) {
                 <dt className="sr-only">Durée</dt>
                 <dd>{course.durationMs ? formatDuration(course.durationMs) : "—"}</dd>
               </div>
-              <div className="text-muted-foreground text-sm">
-                <dt className="sr-only">Coût</dt>
-                <dd>
-                  {formatUsd(course.actualUsd, 3)} réels
-                  {course.estUsd !== null ? ` · ${formatUsd(course.estUsd, 3)} estimés` : ""}
-                </dd>
-              </div>
+              {owned ? (
+                <div className="text-muted-foreground text-sm">
+                  <dt className="sr-only">Coût</dt>
+                  <dd>
+                    {formatUsd(course.actualUsd, 3)} réels
+                    {course.estUsd !== null ? ` · ${formatUsd(course.estUsd, 3)} estimés` : ""}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
           </div>
           <div className="flex flex-wrap gap-2">
             <OfflineToggle courseId={course.id} ambience={course.ambience} title={course.title} />
-            <RemixDialog
-              course={course}
-              pending={pending}
-              onSubmit={(input) => act(() => remixCourse(input))}
-            />
+            {owned ? (
+              <>
+                <RemixDialog
+                  course={course}
+                  pending={pending}
+                  onSubmit={(input) => act(() => remixCourse(input))}
+                />
+                <ShareDialog
+                  courseId={course.id}
+                  recipients={recipients}
+                  pending={pending}
+                  onShare={(email, done) =>
+                    act(
+                      () => shareCourse({ courseId: course.id, email }),
+                      () => {
+                        toast.success(`Cours partagé avec ${email.trim().toLowerCase()}.`);
+                        done();
+                      },
+                    )
+                  }
+                  onUnshare={(email) => act(() => unshareCourse({ courseId: course.id, email }))}
+                />
+              </>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -235,7 +285,7 @@ export function CourseView({ course, sections }: CourseViewProps) {
                     />
                   </details>
                 ) : null}
-                {run.status === "ready" ? (
+                {owned && run.status === "ready" ? (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="mt-2 -ml-3" disabled={pending}>
@@ -272,14 +322,20 @@ export function CourseView({ course, sections }: CourseViewProps) {
         <AlertDialogTrigger asChild>
           <Button variant="ghost" className="text-destructive -ml-4" disabled={pending}>
             <Trash2 aria-hidden />
-            Supprimer ce cours
+            {owned ? "Supprimer ce cours" : "Retirer de ma bibliothèque"}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer « {course.title} » ?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {owned ? "Supprimer" : "Retirer"} « {course.title} » ?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              La piste audio et les fichiers déposés sont effacés pour de bon.
+              {owned
+                ? recipients.length > 0
+                  ? "La piste audio et les fichiers déposés sont effacés pour de bon, y compris pour les personnes avec qui tu le partages."
+                  : "La piste audio et les fichiers déposés sont effacés pour de bon."
+                : "Ce cours partagé disparaît de ta bibliothèque. Il reste intact chez la personne qui te l'a partagé."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -287,16 +343,16 @@ export function CourseView({ course, sections }: CourseViewProps) {
             <AlertDialogAction
               onClick={() =>
                 act(
-                  () => deleteCourse(course.id),
+                  () => (owned ? deleteCourse(course.id) : leaveSharedCourse(course.id)),
                   () => {
                     void removeCourse(course.id);
-                    toast.success("Cours supprimé.");
+                    toast.success(owned ? "Cours supprimé." : "Cours retiré.");
                     router.push("/library");
                   },
                 )
               }
             >
-              Supprimer
+              {owned ? "Supprimer" : "Retirer"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -338,6 +394,90 @@ function NotifyButton() {
       <BellRing aria-hidden />
       Me prévenir quand c&apos;est prêt
     </Button>
+  );
+}
+
+function ShareDialog({
+  courseId,
+  recipients,
+  pending,
+  onShare,
+  onUnshare,
+}: {
+  courseId: string;
+  recipients: string[];
+  pending: boolean;
+  onShare: (email: string, done: () => void) => void;
+  onUnshare: (email: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const inputId = `share-email-${courseId}`;
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="secondary" size="sm" disabled={pending}>
+          <Share2 aria-hidden />
+          Partager{recipients.length > 0 ? ` (${recipients.length})` : ""}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Partager ce cours</DialogTitle>
+          <DialogDescription>
+            Le cours apparaît dans la bibliothèque de l&apos;autre compte, qui peut l&apos;écouter
+            et le garder hors-ligne. Toi seul peux le modifier ou le supprimer.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-6">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onShare(email, () => setEmail(""));
+            }}
+          >
+            <label htmlFor={inputId} className="text-muted-foreground block text-sm">
+              Adresse e-mail du compte
+            </label>
+            <Input
+              id={inputId}
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="prenom@exemple.fr"
+              className="h-11"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            <Button type="submit" className="w-full" disabled={pending || email.trim() === ""}>
+              {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Share2 aria-hidden />}
+              Partager
+            </Button>
+          </form>
+          {recipients.length > 0 ? (
+            <div className="space-y-2">
+              <h3 className="text-muted-foreground text-sm">Partagé avec</h3>
+              <ul className="space-y-1">
+                {recipients.map((recipient) => (
+                  <li key={recipient} className="flex items-center justify-between gap-3">
+                    <span className="truncate">{recipient}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={pending}
+                      aria-label={`Ne plus partager avec ${recipient}`}
+                      onClick={() => onUnshare(recipient)}
+                    >
+                      <X aria-hidden />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
