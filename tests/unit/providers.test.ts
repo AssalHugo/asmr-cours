@@ -81,11 +81,11 @@ describe("format Gemini", () => {
     expect(() => toWav(Buffer.from("ID3"), "audio/mp3")).toThrow(/inattendu/);
   });
 
-  it("écrit une ligne de batch avec la voix, sans style ni texte parasite", () => {
+  it("écrit une ligne de batch avec la voix et le préfixe de chuchotement", () => {
     const item = { key: "c1", model: "m", text: "Bonjour.", style: "whispering" };
     const custom = JSON.parse(batchRequestLine({ ...item, voiceId: "voice_abc123" }));
     expect(custom.key).toBe("c1");
-    expect(custom.request.contents[0].parts[0].text).toBe("Bonjour.");
+    expect(custom.request.contents[0].parts[0].text).toBe("<whispers> Bonjour.");
     expect(custom.request.generation_config.speech_config.voice_config).toEqual({
       voice: "voice_abc123",
     });
@@ -93,7 +93,10 @@ describe("format Gemini", () => {
     expect(prebuilt.request.generation_config.speech_config.voice_config).toEqual({
       prebuilt_voice_config: { voice_name: "Achernar" },
     });
-    expect(JSON.stringify(custom)).not.toContain("whispering");
+    expect(JSON.stringify(custom)).not.toContain('"speech_metadata"');
+
+    const soft = JSON.parse(batchRequestLine({ ...item, voiceId: "Achernar", style: "soft and calm" }));
+    expect(soft.request.contents[0].parts[0].text).toBe("Bonjour.");
   });
 
   it("décode une ligne de résultat batch, et ignore un échec", () => {

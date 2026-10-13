@@ -39,11 +39,18 @@ function voiceConfig(voiceId: string) {
     : { voice: voiceId };
 }
 
+export function formatBatchText(text: string, style?: string): string {
+  if (style === "whispering" && !text.includes("<whispers>") && !text.includes("<whispering>")) {
+    return `<whispers> ${text}`;
+  }
+  return text;
+}
+
 export function batchRequestLine(item: BatchItem): string {
   return JSON.stringify({
     key: item.key,
     request: {
-      contents: [{ role: "user", parts: [{ text: item.text }] }],
+      contents: [{ role: "user", parts: [{ text: formatBatchText(item.text, item.style) }] }],
       generation_config: {
         response_modalities: ["AUDIO"],
         speech_config: { voice_config: toSnake(voiceConfig(item.voiceId)) },
