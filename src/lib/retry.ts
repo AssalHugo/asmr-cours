@@ -65,7 +65,11 @@ export async function withRetry<T>(fn: (attempt: number) => Promise<T>, opts: Re
   }
 }
 
-/** Exécute `worker` sur chaque élément, avec au plus `limit` appels simultanés. */
+/**
+ * Exécute `worker` sur chaque élément, avec au plus `limit` appels simultanés.
+ * À la première erreur, plus rien n'est lancé ; les appels en cours se terminent
+ * (leur travail est conservé pour la reprise), puis l'erreur est relevée.
+ */
 export async function mapLimit<T, R>(
   items: readonly T[],
   limit: number,
@@ -73,12 +77,18 @@ export async function mapLimit<T, R>(
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;
+  let failure: { error: unknown } | undefined;
   async function run() {
-    while (next < items.length) {
+    while (next < items.length && !failure) {
       const index = next++;
-      results[index] = await worker(items[index] as T, index);
+      try {
+        results[index] = await worker(items[index] as T, index);
+      } catch (error) {
+        failure ??= { error };
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, run));
+  if (failure) throw failure.error;
   return results;
 }
