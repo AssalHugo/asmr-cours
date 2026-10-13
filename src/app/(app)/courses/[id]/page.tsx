@@ -4,7 +4,14 @@ import { z } from "zod";
 import { CourseView, type SectionView } from "@/components/course/course-view";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
-import { getCourse, listSections, listSharedWithMe, listShareRecipients } from "@/lib/data";
+import {
+  getCourse,
+  listCourseFolders,
+  listFolders,
+  listSections,
+  listSharedWithMe,
+  listShareRecipients,
+} from "@/lib/data";
 import { VerifyReport } from "@/lib/pipeline/schemas";
 
 export const metadata: Metadata = { title: "Cours" };
@@ -16,9 +23,11 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const course = await getCourse(id.data);
   if (!course) notFound();
   const owned = course.user_id === user.id;
-  const [recipients, sharedBy] = await Promise.all([
+  const [recipients, sharedBy, folders, placements] = await Promise.all([
     owned ? listShareRecipients(course.id, user.id) : [],
     owned ? null : listSharedWithMe(user.id).then((shared) => shared.get(course.id) ?? null),
+    listFolders(),
+    listCourseFolders(),
   ]);
 
   const sections: SectionView[] = (await listSections(course.id)).map((s) => {
@@ -58,6 +67,8 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
         sections={sections}
         owned={owned}
         recipients={recipients}
+        folders={folders}
+        folderId={placements.get(course.id) ?? null}
       />
     </main>
   );

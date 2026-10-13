@@ -165,6 +165,36 @@ test("télécharge le cours et le lit sans réseau", async ({ page, context }) =
   await context.setOffline(false);
 });
 
+test("range le cours dans un dossier, filtre la bibliothèque, puis supprime le dossier", async ({
+  page,
+}) => {
+  await page.goto("/library");
+  await page
+    .getByRole("button", { name: "Ranger « Photosynthèse et respiration » dans un dossier" })
+    .click();
+  await page.getByLabel("Nouveau dossier").fill("Biologie");
+  await page.getByRole("button", { name: "Créer et ranger" }).click();
+
+  const folders = page.getByRole("navigation", { name: "Dossiers" });
+  await expect(folders.getByRole("link", { name: /Biologie\s*1/ })).toBeVisible();
+  await folders.getByRole("link", { name: /Sans dossier\s*0/ }).click();
+  await expect(page.getByText("Tous tes cours sont rangés dans un dossier.")).toBeVisible();
+
+  await folders.getByRole("link", { name: /Biologie\s*1/ }).click();
+  await expect(page.getByRole("heading", { name: "Photosynthèse et respiration" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Renommer" }).click();
+  await page.getByLabel("Nom du dossier").fill("SVT");
+  await page.getByRole("dialog").getByRole("button", { name: "Renommer" }).click();
+  await expect(folders.getByRole("link", { name: /SVT\s*1/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Supprimer le dossier" }).click();
+  await page.getByRole("button", { name: "Supprimer", exact: true }).click();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(folders.getByRole("link", { name: /SVT/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Photosynthèse et respiration" })).toBeVisible();
+});
+
 test("refait le pré-mix avec une autre ambiance, puis supprime le cours", async ({ page }) => {
   await page.goto(courseUrl);
   await page.getByRole("button", { name: "Changer l'ambiance du pré-mix" }).click();
