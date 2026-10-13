@@ -7,7 +7,15 @@ import { Button } from "@/components/ui/button";
 import { cacheAvailable, downloadCourse, isCourseOffline, removeCourse } from "@/lib/offline";
 
 /** « Télécharger » : garde la voix, le pré-mix, l'ambiance, les chapitres et les sous-titres sur l'appareil. */
-export function OfflineToggle({ courseId, ambience }: { courseId: string; ambience: string }) {
+export function OfflineToggle({
+  courseId,
+  ambience,
+  title,
+}: {
+  courseId: string;
+  ambience: string;
+  title: string;
+}) {
   const [state, setState] = useState<"unknown" | "online" | "offline" | "busy">("unknown");
   const [done, setDone] = useState(0);
 
@@ -30,7 +38,7 @@ export function OfflineToggle({ courseId, ambience }: { courseId: string; ambien
     }
     setState("busy");
     try {
-      await downloadCourse(courseId, ambience, (n) => setDone(n));
+      await downloadCourse(courseId, ambience, title, (n) => setDone(n));
       setState("offline");
       toast.success("Disponible hors-ligne.");
     } catch {
@@ -49,7 +57,7 @@ export function OfflineToggle({ courseId, ambience }: { courseId: string; ambien
         <CloudDownload aria-hidden />
       )}
       {state === "busy"
-        ? `Téléchargement ${done}/5`
+        ? `Téléchargement ${done}/6`
         : state === "offline"
           ? "Retirer de l'appareil"
           : "Télécharger"}

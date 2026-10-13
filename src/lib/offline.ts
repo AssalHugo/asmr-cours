@@ -33,10 +33,12 @@ export async function isCourseOffline(courseId: string): Promise<boolean> {
 export async function downloadCourse(
   courseId: string,
   ambience: string,
+  title: string,
   onProgress: (done: number, total: number) => void,
 ): Promise<void> {
   const cache = await caches.open(AUDIO_CACHE);
-  const files = courseFiles(courseId, ambience);
+  // La page du lecteur fait partie du téléchargement : c'est elle qu'on ouvre hors-ligne.
+  const files = [...courseFiles(courseId, ambience), `/play/${courseId}`];
   let done = 0;
   onProgress(done, files.length);
   for (const url of files) {
@@ -48,7 +50,46 @@ export async function downloadCourse(
     await cache.put(url, response);
     onProgress(++done, files.length);
   }
+  rememberTitle(courseId, title);
   await navigator.storage?.persist?.().catch(() => false);
+}
+
+const TITLES_KEY = "murmure-offline-titles";
+
+function readTitles(): Record<string, string> {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(TITLES_KEY) ?? "{}");
+    if (typeof value !== "object" || value === null) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function rememberTitle(courseId: string, title: string | null): void {
+  try {
+    const titles = readTitles();
+    if (title === null) delete titles[courseId];
+    else titles[courseId] = title;
+    localStorage.setItem(TITLES_KEY, JSON.stringify(titles));
+  } catch {
+    // Stockage indisponible : le cours reste listé, sans son titre.
+  }
+}
+
+export type OfflineCourse = { id: string; title: string };
+
+/** Cours téléchargés, avec leur titre, pour la page hors-ligne. */
+export async function listOfflineCourses(): Promise<OfflineCourse[]> {
+  const titles = readTitles();
+  return (await listOfflineCourseIds()).map((id) => ({
+    id,
+    title: titles[id] ?? "Cours téléchargé",
+  }));
 }
 
 /** Retire un cours du cache. Les ambiances, partagées entre cours, restent. */
@@ -57,8 +98,10 @@ export async function removeCourse(courseId: string): Promise<void> {
   const cache = await caches.open(AUDIO_CACHE);
   const prefix = coursePrefix(courseId);
   for (const request of await cache.keys()) {
-    if (new URL(request.url).pathname.startsWith(prefix)) await cache.delete(request);
+    const path = new URL(request.url).pathname;
+    if (path.startsWith(prefix) || path === `/play/${courseId}`) await cache.delete(request);
   }
+  rememberTitle(courseId, null);
 }
 
 export async function listOfflineCourseIds(): Promise<string[]> {
@@ -74,6 +117,11 @@ export async function listOfflineCourseIds(): Promise<string[]> {
 
 export async function clearOffline(): Promise<void> {
   if (cacheAvailable()) await caches.delete(AUDIO_CACHE);
+  try {
+    localStorage.removeItem(TITLES_KEY);
+  } catch {
+    // Rien à effacer.
+  }
 }
 
 export async function storageEstimate(): Promise<{

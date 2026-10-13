@@ -47,7 +47,7 @@ export async function GET(request: Request, context: Context) {
   ) {
     return new NextResponse(null, { status: 403 });
   }
-  const info = await stat(resolved.path).catch(() => null);
+  const info = await stat(/* turbopackIgnore: true */ resolved.path).catch(() => null);
   if (!info?.isFile()) return new NextResponse(null, { status: 404 });
 
   const headers = new Headers({
@@ -65,10 +65,12 @@ export async function GET(request: Request, context: Context) {
     }
     headers.set("Content-Range", `bytes ${start}-${end}/${info.size}`);
     headers.set("Content-Length", String(end - start + 1));
-    const stream = Readable.toWeb(createReadStream(resolved.path, { start, end }));
+    const stream = Readable.toWeb(
+      createReadStream(/* turbopackIgnore: true */ resolved.path, { start, end }),
+    );
     return new NextResponse(stream as ReadableStream<Uint8Array>, { status: 206, headers });
   }
   headers.set("Content-Length", String(info.size));
-  const stream = Readable.toWeb(createReadStream(resolved.path));
+  const stream = Readable.toWeb(createReadStream(/* turbopackIgnore: true */ resolved.path));
   return new NextResponse(stream as ReadableStream<Uint8Array>, { status: 200, headers });
 }

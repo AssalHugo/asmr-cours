@@ -1,6 +1,7 @@
 allowBuilds:
   "@depot/cli": true
   "@google/genai": false
+  "@swc/core": true
   esbuild: true
   ffmpeg-static: true
   protobufjs: false

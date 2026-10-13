@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible, Fraunces } from "next/font/google";
+import { SerwistProvider } from "@serwist/turbopack/react";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -23,6 +24,7 @@ export const metadata: Metadata = {
   description: "Tes cours, chuchotés.",
   applicationName: "Murmure",
   appleWebApp: { capable: true, title: "Murmure", statusBarStyle: "black-translucent" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
@@ -47,7 +49,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="flex min-h-full flex-col">
-        {children}
+        {/* Pas de rechargement au retour du réseau : il couperait une écoute en cours. */}
+        <SerwistProvider
+          swUrl="/serwist/sw.js"
+          disable={process.env.NODE_ENV !== "production"}
+          reloadOnOnline={false}
+        >
+          {children}
+        </SerwistProvider>
         <Toaster position="top-center" />
       </body>
     </html>

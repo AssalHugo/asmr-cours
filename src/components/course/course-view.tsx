@@ -182,7 +182,7 @@ export function CourseView({ course, sections }: CourseViewProps) {
             </dl>
           </div>
           <div className="flex flex-wrap gap-2">
-            <OfflineToggle courseId={course.id} ambience={course.ambience} />
+            <OfflineToggle courseId={course.id} ambience={course.ambience} title={course.title} />
             <RemixDialog
               course={course}
               pending={pending}

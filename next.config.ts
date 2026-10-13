@@ -1,3 +1,4 @@
+import { withSerwist } from "@serwist/turbopack";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -13,7 +14,7 @@ const nextConfig: NextConfig = {
     },
   },
   // Binaires et modules natifs : laissés hors du bundle serveur.
-  serverExternalPackages: ["ffmpeg-static", "ffprobe-static", "unpdf"],
+  serverExternalPackages: ["ffmpeg-static", "ffprobe-static", "unpdf", "esbuild"],
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);

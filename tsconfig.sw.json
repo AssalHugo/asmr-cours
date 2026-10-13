@@ -1,0 +1,18 @@
+// Le service worker a son propre environnement (webworker, sans DOM) : il se compile à part.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": [
+      "esnext",
+      "webworker"
+    ],
+    "incremental": false,
+    "plugins": []
+  },
+  "include": [
+    "src/app/sw.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
