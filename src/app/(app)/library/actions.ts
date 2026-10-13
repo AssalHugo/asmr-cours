@@ -87,7 +87,11 @@ export async function createFolder(raw: unknown): Promise<ActionResult<{ folderI
   }
   if (parsed.data.courseId) {
     const refused = await place(user, parsed.data.courseId, data.id);
-    if (refused) return refused;
+    if (refused) {
+      await admin.from("folders").delete().eq("id", data.id);
+      return refused;
+    }
+    revalidatePath(`/courses/${parsed.data.courseId}`);
   }
   revalidatePath("/library");
   return { ok: true, data: { folderId: data.id } };
@@ -137,5 +141,6 @@ export async function moveCourse(raw: unknown): Promise<ActionResult> {
   const refused = await place(user, courseId, folderId);
   if (refused) return refused;
   revalidatePath("/library");
+  revalidatePath(`/courses/${courseId}`);
   return { ok: true };
 }
