@@ -3,6 +3,7 @@ import { NewCourseWizard } from "@/components/course/new-course-wizard";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { billingModels, getMonthlySpend, getProfile, listMeasured, listVoices } from "@/lib/data";
+import { driveConfig } from "@/lib/drive";
 import { env } from "@/lib/env";
 import { MAX_IMAGES } from "@/lib/uploads";
 
@@ -42,6 +43,7 @@ export default async function NewCoursePage() {
           maxSourceChars: e.MAX_SOURCE_CHARS,
           maxImages: MAX_IMAGES,
         }}
+        drive={driveConfig(e)}
       />
     </main>
   );
