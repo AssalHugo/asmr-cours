@@ -52,6 +52,10 @@ export const ServerEnvSchema = z
     TRIGGER_SECRET_KEY: optionalString,
     TRIGGER_PROJECT_REF: optionalString,
 
+    /** Import depuis Google Drive (facultatif) : client OAuth et clé de navigateur, tous deux publics. */
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: optionalString,
+    NEXT_PUBLIC_GOOGLE_API_KEY: optionalString,
+
     /** Budget mensuel donné à chaque nouveau compte (réglable ensuite, 500 $ au plus). */
     MONTHLY_BUDGET_USD: z.coerce.number().positive().max(500).default(10),
     /** Plafond mensuel tous comptes confondus : sans lui, seule la somme des budgets borne la clé Gemini. */

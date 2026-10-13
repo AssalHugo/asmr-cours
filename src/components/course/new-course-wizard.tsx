@@ -1,17 +1,27 @@
 "use client";
 
-import { ArrowLeft, FileText, Images, Loader2, TextCursorInput, TriangleAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  Cloud,
+  FileText,
+  Images,
+  Loader2,
+  TextCursorInput,
+  TriangleAlert,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createCourse, prepareSource, type PreparedSource } from "@/app/(app)/actions";
 import { Choice } from "@/components/choice";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { pickFromDrive, preloadDrive } from "@/components/upload/drive-picker";
 import { uploadFiles, UploadError } from "@/components/upload/upload-files";
 import { VoicePreviewButton } from "@/components/voice-preview-button";
 import { AMBIENCE_GAIN_RANGE, AMBIENCES, getAmbience } from "@/lib/ambiences";
 import { BUDGET_WARNING_RATIO, expressAllowed } from "@/lib/budget";
+import type { DriveConfig } from "@/lib/drive";
 import {
   comboKey,
   estimateCourse,
@@ -41,6 +51,8 @@ export type WizardProps = {
   mock: boolean;
   measured: { voiceId: string; mode: VoiceMode; sourceChars: number; durationMs: number }[];
   limits: { maxUploadMb: number; maxPdfPages: number; maxSourceChars: number; maxImages: number };
+  /** Réglages du sélecteur Google Drive ; `null` masque le bouton. */
+  drive: DriveConfig | null;
 };
 
 const STEPS = ["Source", "Réglages", "Estimation"] as const;
@@ -146,7 +158,12 @@ export function NewCourseWizard(props: WizardProps) {
       </ol>
 
       {step === 0 ? (
-        <SourceStep limits={props.limits} previous={prepared} onPrepared={onPrepared} />
+        <SourceStep
+          limits={props.limits}
+          drive={props.drive}
+          previous={prepared}
+          onPrepared={onPrepared}
+        />
       ) : null}
 
       {step === 1 && prepared ? (
@@ -419,10 +436,12 @@ function ErrorNote({ message }: { message: string }) {
 
 function SourceStep({
   limits,
+  drive,
   previous,
   onPrepared,
 }: {
   limits: WizardProps["limits"];
+  drive: WizardProps["drive"];
   /** Dépôt précédent, quand on revient changer de source : il est remplacé, pas accumulé. */
   previous: PreparedSource | null;
   onPrepared: (source: PreparedSource) => void;
@@ -433,8 +452,37 @@ function SourceStep({
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
-  async function sendFiles(list: FileList | null) {
-    const files = [...(list ?? [])];
+  // Scripts Google chargés d'avance : au clic, la fenêtre de connexion s'ouvre sans délai.
+  useEffect(() => {
+    if (drive) preloadDrive().catch(() => undefined);
+  }, [drive]);
+
+  async function sendFromDrive() {
+    if (!drive || tab === "text") return;
+    setError(null);
+    try {
+      setBusy({ label: "Google Drive", ratio: null });
+      const files = await pickFromDrive(
+        drive,
+        tab,
+        {
+          maxFiles: tab === "images" ? limits.maxImages : 1,
+          maxBytes: limits.maxUploadMb * 1024 * 1024,
+        },
+        (ratio) => setBusy({ label: "Récupération depuis Drive", ratio }),
+      );
+      if (files) return await sendFiles(files);
+    } catch (cause) {
+      setError(
+        cause instanceof UploadError
+          ? cause.message
+          : "La récupération depuis Google Drive a échoué. Réessaie.",
+      );
+    }
+    setBusy(null);
+  }
+
+  async function sendFiles(files: File[]) {
     if (files.length === 0 || tab === "text") return;
     setError(null);
     if (tab === "images" && files.length > limits.maxImages) {
@@ -543,7 +591,7 @@ function SourceStep({
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
             event.preventDefault();
-            void sendFiles(event.dataTransfer.files);
+            void sendFiles([...event.dataTransfer.files]);
           }}
           className={cn(
             "border-input bg-card/60 hover:bg-card flex min-h-56 cursor-pointer flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed p-6 text-center transition-colors",
@@ -557,7 +605,7 @@ function SourceStep({
             multiple={tab === "images"}
             className="sr-only"
             disabled={busy !== null}
-            onChange={(event) => void sendFiles(event.target.files)}
+            onChange={(event) => void sendFiles([...(event.target.files ?? [])])}
           />
           {busy ? (
             <div className="w-full max-w-60 space-y-3" role="status">
@@ -598,6 +646,25 @@ function SourceStep({
           )}
         </label>
       )}
+      {drive && tab !== "text" ? (
+        <div className="space-y-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            disabled={busy !== null}
+            onClick={() => void sendFromDrive()}
+          >
+            <Cloud aria-hidden />
+            Choisir dans Google Drive
+          </Button>
+          {tab === "pdf" ? (
+            <p className="text-muted-foreground text-center text-sm">
+              Les Google Docs et Slides sont convertis en PDF.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {error ? <ErrorNote message={error} /> : null}
     </div>
   );
