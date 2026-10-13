@@ -3,12 +3,15 @@
 import { randomUUID } from "node:crypto";
 import { runs } from "@trigger.dev/sdk";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { isAllowedEmail } from "@/lib/allowlist";
 import { getUser, type SessionUser } from "@/lib/auth";
 import { checkBudget } from "@/lib/budget";
 import {
   CreateCourseInput,
   fail,
   RemixInput,
+  ShareInput,
   SourceInput,
   type ActionResult,
 } from "@/lib/course-input";
@@ -97,7 +100,10 @@ export async function createCourse(raw: unknown): Promise<ActionResult<{ courseI
   const source = await inspectSource(user.id, input.courseId, input.source.kind, input.source.keys);
   if (!source.ok) return fail(source.message);
 
-  const { data: mine } = await supabase.from("courses").select("id, status, created_at");
+  const { data: mine } = await supabase
+    .from("courses")
+    .select("id, status, created_at")
+    .eq("user_id", user.id);
   const courses = mine ?? [];
   if (courses.some((c) => isActive(c.status))) {
     return fail(
@@ -125,6 +131,7 @@ export async function createCourse(raw: unknown): Promise<ActionResult<{ courseI
   const { data: measured } = await supabase
     .from("courses")
     .select("source_chars, duration_ms")
+    .eq("user_id", user.id)
     .eq("status", "ready")
     .eq("voice_id", input.voiceId)
     .eq("mode", input.mode)
@@ -212,9 +219,15 @@ async function launch(
   return { ok: true, data: { courseId } };
 }
 
-async function ownCourse(courseId: string) {
+/** La RLS laisse aussi lire les cours reçus en partage : le filtre `user_id` est indispensable. */
+async function ownCourse(user: SessionUser, courseId: string) {
   const supabase = await createClient();
-  const { data } = await supabase.from("courses").select("*").eq("id", courseId).maybeSingle();
+  const { data } = await supabase
+    .from("courses")
+    .select("*")
+    .eq("id", courseId)
+    .eq("user_id", user.id)
+    .maybeSingle();
   return data;
 }
 
@@ -222,7 +235,7 @@ async function ownCourse(courseId: string) {
 export async function resumeCourse(courseId: string): Promise<ActionResult<{ courseId: string }>> {
   const user = await getUser();
   if (!user) return SIGNED_OUT;
-  const course = await ownCourse(courseId);
+  const course = await ownCourse(user, courseId);
   if (!course) return fail("Ce cours n'existe plus.");
   if (course.status !== "failed") return fail("Ce cours n'a pas besoin d'être repris.");
   await createAdminClient()
@@ -243,7 +256,7 @@ export async function regenerateSection(
 ): Promise<ActionResult<{ courseId: string }>> {
   const user = await getUser();
   if (!user) return SIGNED_OUT;
-  const course = await ownCourse(courseId);
+  const course = await ownCourse(user, courseId);
   if (!course) return fail("Ce cours n'existe plus.");
   if (course.status !== "ready") return fail("Attends que le cours soit prêt.");
 
@@ -271,7 +284,7 @@ export async function remixCourse(raw: unknown): Promise<ActionResult<{ courseId
   if (!user) return SIGNED_OUT;
   const parsed = RemixInput.safeParse(raw);
   if (!parsed.success) return fail("Ambiance invalide.");
-  const course = await ownCourse(parsed.data.courseId);
+  const course = await ownCourse(user, parsed.data.courseId);
   if (!course) return fail("Ce cours n'existe plus.");
   if (course.status !== "ready") return fail("Attends que le cours soit prêt.");
   await createAdminClient()
@@ -294,7 +307,7 @@ export async function remixCourse(raw: unknown): Promise<ActionResult<{ courseId
 export async function deleteCourse(courseId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return SIGNED_OUT;
-  const course = await ownCourse(courseId);
+  const course = await ownCourse(user, courseId);
   if (!course) return fail("Ce cours n'existe plus.");
 
   if (course.trigger_run_id && isActive(course.status) && env().JOBS_MODE === "trigger") {
@@ -311,6 +324,67 @@ export async function deleteCourse(courseId: string): Promise<ActionResult> {
     .eq("id", courseId)
     .eq("user_id", user.id);
   if (error) return fail("La suppression a échoué. Réessaie.");
+  revalidatePath("/library");
+  return { ok: true };
+}
+
+/** Partage un cours avec un autre compte, en lecture seule. */
+export async function shareCourse(raw: unknown): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  const parsed = ShareInput.safeParse(raw);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Adresse invalide.");
+  const { courseId, email } = parsed.data;
+  const course = await ownCourse(user, courseId);
+  if (!course) return fail("Ce cours n'existe plus.");
+  if (email === user.email.toLowerCase()) return fail("Ce cours est déjà dans ta bibliothèque.");
+  if (!isAllowedEmail(email, env().ALLOWED_EMAILS)) {
+    return fail("Cette adresse n'a pas accès à Murmure : elle ne pourrait pas se connecter.");
+  }
+  const { error } = await createAdminClient().from("course_shares").upsert(
+    {
+      course_id: courseId,
+      owner_id: user.id,
+      owner_email: user.email.toLowerCase(),
+      recipient_email: email,
+    },
+    { onConflict: "course_id,recipient_email", ignoreDuplicates: true },
+  );
+  if (error) return fail("Le partage a échoué. Réessaie.");
+  revalidatePath(`/courses/${courseId}`);
+  return { ok: true };
+}
+
+/** Retire un partage accordé par la propriétaire. */
+export async function unshareCourse(raw: unknown): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  const parsed = ShareInput.safeParse(raw);
+  if (!parsed.success) return fail("Adresse invalide.");
+  const { error } = await createAdminClient()
+    .from("course_shares")
+    .delete()
+    .eq("course_id", parsed.data.courseId)
+    .eq("owner_id", user.id)
+    .eq("recipient_email", parsed.data.email);
+  if (error) return fail("Le retrait a échoué. Réessaie.");
+  revalidatePath(`/courses/${parsed.data.courseId}`);
+  return { ok: true };
+}
+
+/** Côté destinataire : retire de sa bibliothèque un cours reçu en partage. */
+export async function leaveSharedCourse(courseId: string): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  if (!z.uuid().safeParse(courseId).success) return fail("Ce cours n'existe plus.");
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("course_shares")
+    .delete()
+    .eq("course_id", courseId)
+    .eq("recipient_email", user.email.toLowerCase());
+  if (error) return fail("Le retrait a échoué. Réessaie.");
+  await admin.from("playback_progress").delete().eq("course_id", courseId).eq("user_id", user.id);
   revalidatePath("/library");
   return { ok: true };
 }

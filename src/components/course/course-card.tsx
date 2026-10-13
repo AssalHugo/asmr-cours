@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, Users } from "lucide-react";
 import Link from "next/link";
 import type { Course } from "@/lib/data";
 import { formatDate, formatDuration } from "@/lib/format";
@@ -9,10 +9,13 @@ export function CourseCard({
   course,
   positionMs,
   flagged,
+  sharedBy,
 }: {
   course: Course;
   positionMs: number;
   flagged: boolean;
+  /** Adresse de la personne qui partage ce cours, `null` pour ses propres cours. */
+  sharedBy: string | null;
 }) {
   const ready = course.status === "ready";
   const listened = ready && course.duration_ms ? Math.min(1, positionMs / course.duration_ms) : 0;
@@ -43,6 +46,12 @@ export function CourseCard({
           </>
         ) : null}
         {ready ? <OfflineBadge courseId={course.id} /> : null}
+        {sharedBy ? (
+          <span className="text-lavender flex basis-full items-center gap-1">
+            <Users className="size-4" aria-hidden />
+            Partagé par {sharedBy}
+          </span>
+        ) : null}
       </p>
       {ready ? (
         <div

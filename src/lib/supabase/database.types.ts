@@ -157,6 +157,39 @@ export type Database = {
           },
         ];
       };
+      course_shares: {
+        Row: {
+          course_id: string;
+          created_at: string;
+          owner_email: string;
+          owner_id: string;
+          recipient_email: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          course_id: string;
+          created_at?: string;
+          owner_email: string;
+          owner_id: string;
+          recipient_email: string;
+        };
+        Update: {
+          course_id?: string;
+          created_at?: string;
+          owner_email?: string;
+          owner_id?: string;
+          recipient_email?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "course_shares_course_id_fkey";
+            columns: ["course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       playback_progress: {
         Row: {
           course_id: string;

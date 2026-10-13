@@ -14,7 +14,11 @@ export type Voice = Tables["voices"]["Row"];
 export type Profile = Tables["profiles"]["Row"];
 export type Render = Tables["renders"]["Row"];
 
-/** Lectures de l'app : client de session, donc filtrées par la RLS. */
+/**
+ * Lectures de l'app : client de session, donc filtrées par la RLS. Elle laisse aussi passer les
+ * cours partagés avec le compte : tout ce qui ne concerne que ses propres cours (débit mesuré,
+ * dépenses) filtre en plus par `user_id`.
+ */
 
 export async function getProfile(userId: string): Promise<Profile> {
   const supabase = await createClient();
@@ -51,6 +55,28 @@ export async function getCourse(courseId: string): Promise<Course | null> {
   const supabase = await createClient();
   const { data } = await supabase.from("courses").select("*").eq("id", courseId).maybeSingle();
   return data;
+}
+
+/** Cours reçus en partage : identifiant du cours → adresse de la personne qui le partage. */
+export async function listSharedWithMe(userId: string): Promise<Map<string, string>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("course_shares")
+    .select("course_id, owner_email")
+    .neq("owner_id", userId);
+  return new Map((data ?? []).map((s) => [s.course_id, s.owner_email]));
+}
+
+/** Adresses avec qui la propriétaire partage ce cours. */
+export async function listShareRecipients(courseId: string, ownerId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("course_shares")
+    .select("recipient_email")
+    .eq("course_id", courseId)
+    .eq("owner_id", ownerId)
+    .order("created_at");
+  return (data ?? []).map((s) => s.recipient_email);
 }
 
 export async function listSections(courseId: string): Promise<Section[]> {
@@ -121,13 +147,14 @@ export async function listVoices(userId: string): Promise<Voice[]> {
 }
 
 /** Cours terminés par voix × mode, pour le débit mesuré de l'estimation. */
-export async function listMeasured(): Promise<
-  { voiceId: string; mode: Course["mode"]; sourceChars: number; durationMs: number }[]
-> {
+export async function listMeasured(
+  userId: string,
+): Promise<{ voiceId: string; mode: Course["mode"]; sourceChars: number; durationMs: number }[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("courses")
     .select("voice_id, mode, source_chars, duration_ms")
+    .eq("user_id", userId)
     .eq("status", "ready")
     .order("created_at", { ascending: false })
     .limit(60);
@@ -154,11 +181,12 @@ export type CourseUsage = {
 };
 
 /** Historique du mois : coût estimé et coût réel de chaque cours. */
-export async function listCourseUsage(): Promise<CourseUsage[]> {
+export async function listCourseUsage(userId: string): Promise<CourseUsage[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("courses")
     .select("id, title, created_at, est_cost_usd")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(30);
   const { data: events } = await supabase.from("usage_events").select("course_id, cost_usd");

@@ -24,7 +24,7 @@ export default async function SettingsPage() {
   const [profile, spentUsd, usage, voices] = await Promise.all([
     getProfile(user.id),
     getMonthlySpend(),
-    listCourseUsage(),
+    listCourseUsage(user.id),
     listVoices(user.id),
   ]);
   const { models, mock } = billingModels();
