@@ -4,15 +4,13 @@ import { getAmbience, SYNTHETIC_AMBIENCE_ID } from "@/lib/ambiences";
 import { buildChapters, buildTimeline, renderFfmetadata } from "@/lib/audio/chapters";
 import { probeDurationMs, runFfmpeg } from "@/lib/audio/ffmpeg";
 import { encodeVoiceArgs, masterArgs } from "@/lib/audio/master";
-import { mixArgs, noiseBedArgs } from "@/lib/audio/mix";
+import { synthesizeAmbience } from "@/lib/audio/ambience-synth";
+import { mixArgs } from "@/lib/audio/mix";
 import { concatArgs, concatList, silenceArgs, trimSilenceArgs } from "@/lib/audio/silence";
 import { parseWav } from "@/lib/audio/wav";
 import { mapLimit } from "@/lib/retry";
 import { keys } from "@/lib/storage/keys";
 import { PipelineError, setStatus, type Ctx } from "./context";
-
-/** Durée du lit d'ambiance synthétique, en secondes. */
-const SYNTH_AMBIENCE_SECONDS = 120;
 
 /**
  * Fichier maître d'une ambiance. Le bruit rose est synthétisé par FFmpeg (et, en mode
@@ -34,12 +32,8 @@ export async function ensureAmbienceMaster(ctx: Ctx, id: string, dir: string): P
       `L'ambiance « ${ambience.label} » n'est pas encore installée. Choisis « Bruit rose », ou installe-la (docs/SETUP.md, étape Ambiances).`,
     );
   }
-  const web = join(dir, `ambience-${id}.m4a`);
-  const synth = { ...ambience.synth, seconds: SYNTH_AMBIENCE_SECONDS };
-  await runFfmpeg(noiseBedArgs(path, { ...synth, codec: "flac" }));
-  await runFfmpeg(noiseBedArgs(web, { ...synth, codec: "aac" }));
-  await storage.uploadFile(path, keys.ambienceMaster(id), "audio/flac");
-  await storage.uploadFile(web, keys.ambienceWeb(id), "audio/mp4");
+  await synthesizeAmbience(storage, id);
+  await storage.downloadFile(keys.ambienceMaster(id), path);
   return path;
 }
 

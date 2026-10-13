@@ -12,18 +12,18 @@ Règles Next.js propres à cette version : @AGENTS.md
 
 ## Versions retenues (vérifiées sur npm le 2026-10-13)
 
-| Outil      | Version | Note                                                                              |
-| ---------- | ------- | --------------------------------------------------------------------------------- |
-| Node       | 22 LTS  |                                                                                   |
-| pnpm       | 12.11   | builds natifs autorisés un par un dans `pnpm-workspace.yaml`                      |
-| Next.js    | 16.4    | `proxy.ts` (plus `middleware.ts`), Cache Components + Partial Prefetching activés |
-| React      | 19.3    |                                                                                   |
-| TypeScript | 5.9     | TS 7 existe mais `create-next-app` 16.4 fige `^5` : on suit                       |
-| ESLint     | 9       | ESLint 10 existe mais `eslint-config-next` 16.4 fige `^9`                         |
-| Tailwind   | 4.3     | config en CSS (`globals.css`), pas de `tailwind.config`                           |
-| shadcn     | 4.21    | base Radix, preset nova, `cn` vient du paquet `cn`                                |
-| zod        | 4.6     | `z.url()`, `z.prettifyError()`, `z.toJSONSchema()`                                |
-| Vitest     | 5.0     | config en `.mts`                                                                  |
+| Outil      | Version | Note                                                                                    |
+| ---------- | ------- | --------------------------------------------------------------------------------------- |
+| Node       | 22 LTS  |                                                                                         |
+| pnpm       | 12.11   | builds natifs autorisés un par un dans `pnpm-workspace.yaml`                            |
+| Next.js    | 16.4    | `proxy.ts` (plus `middleware.ts`) ; Cache Components désactivés (voir `next.config.ts`) |
+| React      | 19.3    |                                                                                         |
+| TypeScript | 5.9     | TS 7 existe mais `create-next-app` 16.4 fige `^5` : on suit                             |
+| ESLint     | 9       | ESLint 10 existe mais `eslint-config-next` 16.4 fige `^9`                               |
+| Tailwind   | 4.3     | config en CSS (`globals.css`), pas de `tailwind.config`                                 |
+| shadcn     | 4.21    | base Radix, preset nova, `cn` vient du paquet `cn`                                      |
+| zod        | 4.6     | `z.url()`, `z.prettifyError()`, `z.toJSONSchema()`                                      |
+| Vitest     | 5.0     | config en `.mts`                                                                        |
 
 ## Conventions
 
@@ -31,7 +31,7 @@ Règles Next.js propres à cette version : @AGENTS.md
 - zod à chaque frontière : env, routes, sorties LLM, payloads de tâches.
 - `import "server-only"` sur tout module qui touche une clé. Vitest le remplace par `tests/stubs/server-only.ts`.
 - Env : `src/lib/env.schema.ts` (schéma pur, testable), `src/lib/env.ts` (lecture paresseuse + groupes `r2Env()`, `geminiEnv()`…), `src/lib/env.public.ts` (navigateur).
-- Cache Components : toute lecture de session ou de cookie vit sous un `<Suspense>`.
+- Toutes les pages sont dynamiques (session). Les lectures passent par `src/lib/data.ts` (client de session, RLS).
 - FFmpeg : toujours `spawn` avec un tableau d'arguments.
 - Textes d'interface en français.
 
