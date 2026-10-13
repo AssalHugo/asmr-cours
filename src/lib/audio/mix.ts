@@ -19,7 +19,8 @@ export type MixOptions = {
 export function mixFilter(ambienceGainDb: number, durationMs: number): string {
   const fadeStart = Math.max(0, durationMs / 1000 - MIX.fadeOutSeconds);
   return [
-    "[0:a]pan=stereo|c0=c0|c1=c0[v]",
+    // Le master est déjà stéréo quand la voix se balance ; un master mono est dédoublé.
+    "[0:a]aformat=channel_layouts=stereo[v]",
     `[1:a]volume=${ambienceGainDb.toFixed(1)}dB,afade=t=in:d=${MIX.ambienceFadeInSeconds}[bg]`,
     `[v][bg]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=${fadeStart.toFixed(3)}:d=${MIX.fadeOutSeconds}[out]`,
   ].join(";");

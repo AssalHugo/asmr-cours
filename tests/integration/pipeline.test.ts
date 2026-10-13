@@ -11,6 +11,7 @@ import { createMockTts } from "@/lib/tts/mock";
 import {
   failCourse,
   generateCourse,
+  redoChunk,
   regenerateSection,
   remixCourse,
   voiceSample,
@@ -85,14 +86,14 @@ describe("pipeline complet en mode mock", () => {
     });
     expect(captions.at(-1)?.endMs).toBeLessThanOrEqual(total);
 
-    // Fichiers audio réels : AAC 48 kHz, chapitres embarqués, voix mono et mix stéréo.
+    // Fichiers audio réels : AAC 48 kHz, chapitres embarqués, voix et mix en stéréo.
     const voicePath = join(scratch, "voice.m4a");
     const mixPath = join(scratch, "mix.m4a");
     await h.storage.downloadFile(keys.voice(course.id), voicePath);
     await h.storage.downloadFile(keys.mix(course.id, "rain"), mixPath);
     const voice = await probe(voicePath);
     const mix = await probe(mixPath);
-    expect(voice).toMatchObject({ codec: "aac", sampleRate: 48_000, channels: 1 });
+    expect(voice).toMatchObject({ codec: "aac", sampleRate: 48_000, channels: 2 });
     expect(mix).toMatchObject({ codec: "aac", sampleRate: 48_000, channels: 2 });
     expect(voice.chapters.map((c) => c.title)).toEqual(chapters.map((c) => c.title));
     expect(mix.chapters).toHaveLength(3);
@@ -110,7 +111,8 @@ describe("pipeline complet en mode mock", () => {
     );
     expect(h.calls).toMatchObject({ extract: 1, rewrite: 3, verify: 3 });
     expect(h.calls.tts).toBe(new Set(chunks.map((c) => c.hash)).size);
-  });
+    // Le cours le plus long de la suite : trois sections, mastering en deux passes.
+  }, 120_000);
 
   it("reprend après une interruption sans refaire ce qui est déjà fait", async () => {
     const h = await createHarness({ failTtsAt: 3 });
@@ -153,6 +155,10 @@ describe("pipeline complet en mode mock", () => {
     const tts = h.repo.usage.filter((u) => u.step === "tts");
     expect(tts.length).toBeGreaterThan(0);
     expect(tts.every((u) => u.tier === "batch")).toBe(true);
+    // En Éco, le chuchoté voyage dans le texte : le Batch n'a pas de style par tour.
+    const chunks = await h.repo.listChunks(course.id);
+    expect(chunks.every((c) => c.style === "" && c.text.startsWith("<whispers> "))).toBe(true);
+    expect(chunks.every((c) => !c.caption.includes("<"))).toBe(true);
   });
 
   it("retombe sur l'API standard si le Batch est indisponible", async () => {
@@ -170,6 +176,84 @@ describe("pipeline complet en mode mock", () => {
     expect(h.repo.usage.filter((u) => u.step === "tts").every((u) => u.tier === "standard")).toBe(
       true,
     );
+  });
+
+  it("garde le rendu Éco quand un chunk retombe sur l'API standard", async () => {
+    const requests: { text: string; style: string }[] = [];
+    const mock = createMockTts();
+    const h = await createHarness({
+      tts: {
+        submitBatch: async () => {
+          throw new Error("Batch non disponible en free tier");
+        },
+        synthesize: async (req) => {
+          requests.push({ text: req.text, style: req.style });
+          return mock.synthesize(req);
+        },
+      },
+    });
+    const course = await h.addCourse({ tier: "eco" });
+    await generateCourse(h.deps, payload(course.id));
+    expect(requests.length).toBeGreaterThan(0);
+    expect(requests.every((r) => r.style === "" && r.text.startsWith("<whispers> "))).toBe(true);
+  });
+
+  it("refait une fois un passage à la durée aberrante, et journalise la prise rejetée", async () => {
+    const mock = createMockTts();
+    let truncated = false;
+    const h = await createHarness({
+      tts: {
+        synthesize: async (req) => {
+          const result = await mock.synthesize(req);
+          if (truncated || req.text.length < 60) return result;
+          truncated = true;
+          return { ...result, durationMs: 200 };
+        },
+      },
+    });
+    const course = await h.addCourse();
+    await generateCourse(h.deps, payload(course.id));
+
+    const hashes = new Set((await h.repo.listChunks(course.id)).map((c) => c.hash));
+    expect(truncated).toBe(true);
+    expect(h.calls.tts).toBe(hashes.size + 1);
+    expect(h.repo.usage.filter((u) => u.step === "tts")).toHaveLength(hashes.size + 1);
+    expect(h.repo.courses.get(course.id)?.status).toBe("ready");
+  });
+
+  it("refait un seul passage sans toucher au script ni aux autres", async () => {
+    const h = await createHarness();
+    const course = await h.addCourse();
+    await generateCourse(h.deps, payload(course.id));
+    const before = await h.repo.listChunks(course.id);
+    const target = before[1]!;
+    const calls = { ...h.calls };
+
+    await redoChunk(h.deps, { courseId: course.id, userId: USER, chunkId: target.id });
+
+    const after = await h.repo.listChunks(course.id);
+    expect(h.calls.tts - calls.tts).toBe(1);
+    expect(h.calls.rewrite).toBe(calls.rewrite);
+    expect(after.map((c) => c.text)).toEqual(before.map((c) => c.text));
+    expect(after[1]?.hash).not.toBe(target.hash);
+    expect(after.filter((c, i) => c.hash !== before[i]?.hash)).toHaveLength(1);
+    expect(h.repo.courses.get(course.id)).toMatchObject({ status: "ready" });
+    // La prise d'origine reste en cache : un autre cours peut la partager.
+    expect(await h.storage.head(keys.ttsCache(target.hash))).not.toBeNull();
+
+    // Deuxième prise : la première, propre à ce cours, est retirée du cache.
+    const firstTake = after[1]!;
+    await redoChunk(h.deps, { courseId: course.id, userId: USER, chunkId: firstTake.id });
+    const again = await h.repo.listChunks(course.id);
+    expect(again[1]?.hash).not.toBe(firstTake.hash);
+    expect(await h.storage.head(keys.ttsCache(firstTake.hash))).toBeNull();
+    expect(await h.storage.head(keys.ttsCache(again[1]!.hash))).not.toBeNull();
+
+    // Une reprise complète garde la prise choisie.
+    const ttsBefore = h.calls.tts;
+    await generateCourse(h.deps, payload(course.id));
+    expect(h.calls.tts).toBe(ttsBefore);
+    expect((await h.repo.listChunks(course.id))[1]?.hash).toBe(again[1]?.hash);
   });
 
   it("relance la réécriture deux fois au plus, puis continue avec une alerte", async () => {

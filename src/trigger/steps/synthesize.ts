@@ -1,4 +1,5 @@
 import { DEFAULT_RATE } from "@/lib/estimate";
+import { speechDurationPlausible } from "@/lib/pipeline/chunker";
 import type { ChunkRow } from "@/lib/pipeline/repo";
 import { costUsd } from "@/lib/pricing";
 import { mapLimit } from "@/lib/retry";
@@ -43,13 +44,20 @@ async function runStandard(job: Job, chunks: ChunkRow[], voiceId: string): Promi
   const { ctx } = job;
   await setStatus(ctx, "synthesizing", progress(job));
   await mapLimit(chunks, ctx.deps.limits.ttsConcurrency, async (chunk) => {
-    const result = await ctx.deps.ai.tts.synthesize({
+    const request: TtsRequest = {
       key: chunk.hash,
       text: chunk.text,
       voiceId,
       style: chunk.style,
       model: job.model,
-    });
+    };
+    let result = await ctx.deps.ai.tts.synthesize(request);
+    if (!speechDurationPlausible(chunk.caption.length, result.durationMs)) {
+      // Passage tronqué ou parti en roue libre : la prise rejetée est facturée, donc
+      // journalisée, puis refaite une seule fois. La seconde est gardée quoi qu'il arrive.
+      await recordUsage(ctx, "tts", job.model, "standard", result.usage);
+      result = await ctx.deps.ai.tts.synthesize(request);
+    }
     await store(job, result, "standard");
     await setStatus(ctx, "synthesizing", progress(job));
   });
@@ -67,7 +75,7 @@ async function runBatch(job: Job, chunks: ChunkRow[], voiceId: string): Promise<
 
   // Une reprise relit tout le fichier de résultats : seuls les chunks encore attendus sont
   // rangés et facturés, les autres l'ont déjà été.
-  const wanted = new Set(chunks.map((c) => c.hash));
+  const wanted = new Map(chunks.map((c) => [c.hash, c.caption.length]));
   const received = new Set<string>();
   const clear = () => patchCourse(ctx, { batch_job_id: null, batch_submitted_at: null });
 
@@ -94,7 +102,13 @@ async function runBatch(job: Job, chunks: ChunkRow[], voiceId: string): Promise<
   for (;;) {
     await setStatus(ctx, "waiting_batch", progress(job));
     const poll = await tts.pollBatch(jobId, async (result) => {
-      if (!wanted.has(result.key) || received.has(result.key)) return;
+      const spokenChars = wanted.get(result.key);
+      if (spokenChars === undefined || received.has(result.key)) return;
+      if (!speechDurationPlausible(spokenChars, result.durationMs)) {
+        // Audio aberrant : facturé, mais écarté. Le chunk repart en appel standard.
+        await recordUsage(ctx, "tts", job.model, "batch", result.usage);
+        return;
+      }
       received.add(result.key);
       await store(job, result, "batch");
     });

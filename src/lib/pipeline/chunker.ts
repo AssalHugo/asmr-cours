@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { VoiceMode } from "@/lib/estimate";
+import type { TtsTier, VoiceMode } from "@/lib/estimate";
 import type { Segment } from "./schemas";
 
 /** Une pause au moins aussi longue devient un silence exact inséré par FFmpeg. */
@@ -21,6 +21,24 @@ export const TTS_STYLE: Record<VoiceMode, string> = {
   whisper: "whispering",
   soft: "soft and calm",
 };
+
+export type TtsDelivery = {
+  /** Style par tour (`speech_metadata`) ; vide quand il n'est pas exprimable. */
+  style: string;
+  /** Balise placée en tête du texte, quand le style ne peut pas voyager autrement. */
+  tag: string;
+};
+
+/**
+ * Manière de porter le mode jusqu'à la voix. Le Batch API (Éco) parle generateContent, qui
+ * n'a pas de style par tour : le chuchoté y passe par une balise, le mode doux repose sur
+ * la voix seule. Un cours Éco garde cette forme même quand un chunk retombe sur l'API
+ * standard, pour qu'un même cours ne mélange jamais deux rendus.
+ */
+export function ttsDelivery(mode: VoiceMode, tier: TtsTier): TtsDelivery {
+  if (tier === "express") return { style: TTS_STYLE[mode], tag: "" };
+  return { style: "", tag: mode === "whisper" ? "<whispers> " : "" };
+}
 
 export const captionOf = (segments: Segment[]) => segments.map((s) => s.text.trim()).join(" ");
 
@@ -81,7 +99,34 @@ export function renderGeminiChunkText(segments: Segment[]): string {
     .join("");
 }
 
-/** Clé de cache TTS : un chunk inchangé n'est jamais refacturé. */
-export function chunkHash(model: string, voiceId: string, style: string, text: string): string {
-  return createHash("sha256").update([model, voiceId, style, text].join("|")).digest("hex");
+/**
+ * Clé de cache TTS : un chunk inchangé n'est jamais refacturé. `take` désigne une nouvelle
+ * prise d'un passage refait (`courseId:n`) : elle est propre au cours, la prise d'origine
+ * reste partagée.
+ */
+export function chunkHash(
+  model: string,
+  voiceId: string,
+  style: string,
+  text: string,
+  take?: string,
+): string {
+  const parts = [model, voiceId, style, text];
+  if (take) parts.push(`take:${take}`);
+  return createHash("sha256").update(parts.join("|")).digest("hex");
+}
+
+/**
+ * Durée plausible d'une synthèse : le modèle peut tronquer un passage ou partir en roue
+ * libre. Bornes larges (5 à 28 caractères par seconde), pour ne rejeter que l'aberrant.
+ */
+export const SPEECH_RATE_BOUNDS = { minCharsPerSecond: 5, maxCharsPerSecond: 28, graceMs: 3000 };
+
+export function speechDurationPlausible(spokenChars: number, durationMs: number): boolean {
+  const { minCharsPerSecond, maxCharsPerSecond, graceMs } = SPEECH_RATE_BOUNDS;
+  if (durationMs <= 0) return false;
+  // Un passage très court ne dit rien du débit.
+  const tooShort = spokenChars >= 40 && durationMs < (spokenChars / maxCharsPerSecond) * 1000;
+  const tooLong = durationMs > (spokenChars / minCharsPerSecond) * 1000 + graceMs;
+  return !tooShort && !tooLong;
 }

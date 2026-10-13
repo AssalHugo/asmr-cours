@@ -21,6 +21,7 @@
     "ambience:prepare": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ambience-prepare.ts",
     "ambience:upload": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ambience-upload.ts",
     "voices:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/voices-seed.ts",
+    "voices:list": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/voices-list.ts",
     "gemini:smoke": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/gemini-smoke.ts"
   },
   "dependencies": {

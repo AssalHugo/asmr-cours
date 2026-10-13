@@ -1,8 +1,12 @@
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { getAmbience } from "@/lib/ambiences";
 import { isAmbienceInstalled } from "@/lib/audio/ambience-synth";
+import { masterVoice, trimChunk } from "@/lib/audio/render";
 import { TTS_STYLE } from "@/lib/pipeline/chunker";
 import type {
   GenerateCoursePayload,
+  RedoChunkPayload,
   RegenerateSectionPayload,
   RemixPayload,
   VoiceSamplePayload,
@@ -10,7 +14,7 @@ import type {
 import { VOICE_PREVIEW_SEGMENTS } from "@/lib/prompts/voice-presets";
 import { keys } from "@/lib/storage/keys";
 import { assembleAndPublish } from "./assemble";
-import { chunkStep } from "./chunk";
+import { chunkStep, chunkTakes, courseVoice, takeHash, ttsModel } from "./chunk";
 import {
   assertBudget,
   loadCtx,
@@ -86,6 +90,39 @@ export async function regenerateSection(deps: PipelineDeps, payload: RegenerateS
   return { courseId: ctx.course.id };
 }
 
+/**
+ * Refait la prise d'un seul passage, sans toucher au script : même texte, nouvel
+ * enregistrement. Seul ce passage est facturé ; le reste vient du cache.
+ */
+export async function redoChunk(deps: PipelineDeps, payload: RedoChunkPayload) {
+  const ctx = await loadCtx(deps, payload.courseId, payload.userId, { forceStandard: true });
+  const chunk = (await deps.repo.listChunks(ctx.course.id)).find((c) => c.id === payload.chunkId);
+  if (!chunk) throw new PipelineError("Ce passage n'existe plus.");
+
+  const voice = await courseVoice(ctx);
+  const base = {
+    model: ttsModel(ctx),
+    voiceId: voice.provider_voice_id,
+    style: chunk.style,
+    text: chunk.text,
+  };
+  const origin = takeHash(ctx.course, base, 0);
+  const takes = chunkTakes(ctx.course);
+  const previous = takes[origin] ?? 0;
+  await patchCourse(ctx, { chunk_takes: { ...takes, [origin]: previous + 1 } });
+
+  await chunkStep(ctx);
+  await synthStep(ctx);
+  await assembleAndPublish(ctx);
+  // La prise remplacée est propre à ce cours ; celle d'origine peut servir à d'autres.
+  if (previous > 0) {
+    await deps.storage
+      .delete(keys.ttsCache(takeHash(ctx.course, base, previous)))
+      .catch(() => undefined);
+  }
+  return { courseId: ctx.course.id };
+}
+
 /** §8.9 — Nouveau pré-mix avec une autre ambiance : FFmpeg seul, coût IA nul. */
 export async function remixCourse(deps: PipelineDeps, payload: RemixPayload) {
   const ctx = await loadCtx(deps, payload.courseId, payload.userId);
@@ -106,7 +143,9 @@ export async function voiceSample(deps: PipelineDeps, payload: VoiceSamplePayloa
   const key = keys.voiceSample(voice.id, payload.mode);
   if (await storage.head(key)) return { key, cached: true };
 
-  const model = ai.models.ttsLite;
+  // Même modèle, même style et même mastering qu'un cours en qualité Standard : l'aperçu
+  // doit sonner comme ce qui sera généré.
+  const model = ai.models.tts;
   const scope = { deps, userId: payload.userId };
   const result = await ai.tts.synthesize({
     key,
@@ -115,8 +154,16 @@ export async function voiceSample(deps: PipelineDeps, payload: VoiceSamplePayloa
     style: TTS_STYLE[payload.mode],
     model,
   });
-  await storage.put(key, result.wav, "audio/wav");
   await recordUsage(scope, "voice-sample", model, "standard", result.usage);
+  await deps.workdir(async (dir) => {
+    const raw = join(dir, "raw.wav");
+    const trimmed = join(dir, "trimmed.wav");
+    const master = join(dir, "master.wav");
+    await writeFile(raw, result.wav);
+    await trimChunk(raw, trimmed);
+    await masterVoice(trimmed, master);
+    await storage.uploadFile(master, key, "audio/wav");
+  });
   await repo.touchVoice(voice.id, deps.now());
   return { key, cached: false };
 }

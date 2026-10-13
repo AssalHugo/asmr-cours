@@ -29,8 +29,9 @@ export const keys = {
   captions: (courseId: string) => `${keys.coursePrefix(courseId)}captions.json`,
   ambienceMaster: (id: string) => `ambience/master/${slug(id)}.flac`,
   ambienceWeb: (id: string) => `ambience/web/${slug(id)}.m4a`,
+  // « v2 » : aperçu masterisé au modèle standard ; les anciens extraits ne sont plus servis.
   voiceSample: (voiceId: string, mode: "whisper" | "soft") =>
-    `voices/${uuid(voiceId)}/sample-${mode}.wav`,
+    `voices/${uuid(voiceId)}/sample-${mode}-v2.wav`,
 } as const;
 
 /** Nom de fichier normalisé d'un upload : rang (ordre des pages) + UUID + extension sûre. */

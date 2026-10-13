@@ -4,7 +4,13 @@ import { z } from "zod";
 import { CourseView, type SectionView } from "@/components/course/course-view";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
-import { getCourse, listSections, listSharedWithMe, listShareRecipients } from "@/lib/data";
+import {
+  getCourse,
+  listPassages,
+  listSections,
+  listSharedWithMe,
+  listShareRecipients,
+} from "@/lib/data";
 import { VerifyReport } from "@/lib/pipeline/schemas";
 
 export const metadata: Metadata = { title: "Cours" };
@@ -21,6 +27,8 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
     owned ? null : listSharedWithMe(user.id).then((shared) => shared.get(course.id) ?? null),
   ]);
 
+  // Les passages ne servent qu'à en refaire un : inutile de les lire pour un cours en préparation.
+  const passages = owned && course.status === "ready" ? await listPassages(course.id) : [];
   const sections: SectionView[] = (await listSections(course.id)).map((s) => {
     const report = VerifyReport.safeParse(s.verify_report);
     return {
@@ -30,6 +38,9 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
       verified: s.verified,
       checked: s.verify_report !== null,
       report: report.success ? report.data : null,
+      passages: passages
+        .filter((p) => p.section_id === s.id)
+        .map((p) => ({ id: p.id, caption: p.caption, startMs: p.start_ms })),
     };
   });
 

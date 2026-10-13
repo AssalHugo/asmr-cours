@@ -36,9 +36,10 @@ Les variables se renseignent dans `.env.local` (copie de `.env.example`). Ne met
 **À vérifier à cette étape.** Deux points n'ont pas pu être validés sans clé :
 
 - **TTS par Batch.** La doc du Batch API ne confirme pas les modèles TTS. Si `--batch` échoue, le mode Éco retombe tout seul sur l'API standard (après contrôle du budget) : il fonctionne, mais sans la remise de 50 %. Le format de requête est isolé dans `src/lib/gemini/batch.ts` : c'est le seul fichier à corriger.
-- **Voix prédéfinies.** Les voix de départ `Achernar` et `Enceladus` (`src/lib/prompts/voice-presets.ts`) viennent du catalogue Gemini connu. Si l'une n'existe plus, le test TTS le signale : remplace son nom.
+- **Voix prédéfinies.** Les voix de départ `Achernar`, `Enceladus`, `Vindemiatrix` et `Sulafat` (`src/lib/prompts/voice-presets.ts`) viennent du catalogue Gemini officiel. Si l'une n'existe plus, le test TTS le signale : remplace son nom. `pnpm voices:list` affiche les autres voix du catalogue qui parlent français.
+- **Langue de la synthèse.** Chaque appel envoie `language: "fr-FR"` dans `speech_config`. Le champ existe dans l'API, mais la doc n'en précise pas le format : si le test TTS le refuse, corrige `SPEECH_LANGUAGE` dans `src/lib/gemini/tts.ts`.
 
-En mode Éco, le style par tour (« whispering ») n'est pas exprimable dans une requête Batch : le chuchotement repose alors sur la voix designée seule. Préfère donc une voix créée (étape 7) à une voix prédéfinie pour les cours en Éco.
+En mode Éco, le style par tour (« whispering ») n'est pas exprimable dans une requête Batch : le chuchoté passe par la balise `<whispers>` en tête de chaque passage, et le mode doux repose sur la voix seule. Un cours Éco garde cette forme même quand un passage retombe sur l'API standard, pour ne pas mélanger deux rendus. Préfère donc, en Éco, une voix créée pour le mode du cours (étape 7) à une voix prédéfinie.
 
 ## 2. Supabase
 
@@ -176,7 +177,7 @@ Tant qu'une ambiance n'est pas installée, la choisir fait échouer le mix avec 
 ## 7. Voix
 
 1. Connecte-toi une première fois à l'app (ton profil est créé à ce moment-là).
-2. Crée les deux presets dans le projet Gemini de la clé courante, avec les variables Supabase et R2 de prod dans `.env.local` :
+2. Crée les quatre presets (deux voix chuchotées, deux voix douces) dans le projet Gemini de la clé courante, avec les variables Supabase et R2 de prod dans `.env.local` :
 
    ```bash
    pnpm voices:seed
@@ -188,7 +189,9 @@ Tant qu'une ambiance n'est pas installée, la choisir fait échouer le mix avec 
    pnpm voices:seed --fr
    ```
 
-3. Écoute les échantillons dans le **Studio voix** (ou dans `.data/voices-seed/`), garde ce qui sonne le mieux et supprime le reste. Choisis ta voix par défaut.
+3. Écoute les voix dans le **Studio voix** : l'aperçu y est généré à la première écoute, avec le texte fixe, le modèle standard et le mastering d'un cours (environ 0,006 $ par voix et par mode). `.data/voices-seed/` ne contient que l'extrait brut renvoyé par Gemini. Garde ce qui sonne le mieux, supprime le reste, choisis ta voix par défaut.
+
+Une voix est conçue pour un mode : « Murmure… » pour le chuchoté, « Voix douce… » pour le doux. Une description tient en une ou deux phrases et ne décrit que des traits permanents (âge, timbre, texture, débit) : c'est la consigne de la doc Gemini, une description longue rend la voix moins stable.
 
 Les voix appartiennent à un projet Gemini : refais cette étape pour le projet dev (`APP_ENV=dev`) si tu veux des voix designées en développement. Gemini supprime une voix restée un an sans usage, et en accepte 200 par projet.
 

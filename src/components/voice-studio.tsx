@@ -172,8 +172,9 @@ export function VoiceStudio({
       <section className="space-y-4">
         <h2 className="text-2xl">Créer une voix</h2>
         <p className="text-muted-foreground">
-          Décris la voix que tu veux entendre : âge, timbre, débit, distance au micro. Écoute,
-          ajuste, puis garde celle qui te plaît.
+          Décris en une ou deux phrases ce qui ne change jamais : âge, timbre, texture, débit,
+          distance au micro. Une voix par mode : un chuchotement ne fait pas une bonne voix douce.
+          Écoute, ajuste, puis garde celle qui te plaît.
         </p>
         <textarea
           value={description}
@@ -214,7 +215,13 @@ export function VoiceStudio({
           <div className="bg-card space-y-4 rounded-2xl p-4">
             <h3 className="text-lg">Ton essai</h3>
             {draft.sample ? (
-              <audio controls src={draft.sample} className="w-full" />
+              <>
+                <audio controls src={draft.sample} className="w-full" />
+                <p className="text-muted-foreground text-sm">
+                  Extrait brut de Gemini. L&apos;aperçu fidèle à tes cours (même réglages, même
+                  mixage) est créé quand tu gardes la voix.
+                </p>
+              </>
             ) : (
               <p className="text-muted-foreground text-sm">
                 Pas d&apos;extrait pour cet essai : garde la voix pour l&apos;écouter.

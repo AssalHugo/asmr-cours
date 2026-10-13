@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   deleteCourse,
   leaveSharedCourse,
+  redoChunk,
   regenerateSection,
   remixCourse,
   resumeCourse,
@@ -63,6 +64,8 @@ export type SectionView = {
   verified: boolean;
   checked: boolean;
   report: { missingFacts: string[]; alteredFacts: string[]; inventedClaims: string[] } | null;
+  /** Passages du chapitre, pour en refaire un. Vide hors d'un cours prêt et à soi. */
+  passages: { id: string; caption: string; startMs: number | null }[];
 };
 
 export type CourseViewProps = {
@@ -89,6 +92,7 @@ export type CourseViewProps = {
 export function CourseView({ course, sections, owned, recipients }: CourseViewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [redo, setRedo] = useState<SectionView["passages"][number] | null>(null);
   const run = useCourseRun(course.id, {
     status: course.status,
     progress: course.progress,
@@ -295,6 +299,37 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
                     />
                   </details>
                 ) : null}
+                {owned && run.status === "ready" && section.passages.length > 0 ? (
+                  <details className="mt-3 text-sm">
+                    <summary className="text-muted-foreground min-h-11 cursor-pointer content-center">
+                      Refaire un passage mal enregistré
+                    </summary>
+                    <ul className="mt-1 space-y-1">
+                      {section.passages.map((passage) => (
+                        <li key={passage.id} className="flex items-start gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0"
+                            disabled={pending}
+                            aria-label={`Refaire le passage : ${passage.caption.slice(0, 60)}`}
+                            onClick={() => setRedo(passage)}
+                          >
+                            <RefreshCw aria-hidden />
+                          </Button>
+                          <p className="py-2">
+                            {passage.startMs !== null ? (
+                              <span className="text-muted-foreground tabular mr-2">
+                                {formatClock(passage.startMs)}
+                              </span>
+                            ) : null}
+                            <span className="line-clamp-2 inline">{passage.caption}</span>
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
                 {owned && run.status === "ready" ? (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -327,6 +362,35 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
           </ol>
         </section>
       ) : null}
+
+      <AlertDialog
+        open={redo !== null}
+        onOpenChange={(open) => {
+          if (!open) setRedo(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Refaire ce passage ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              « {redo?.caption.slice(0, 160)}
+              {(redo?.caption.length ?? 0) > 160 ? "…" : ""} » Murmure le réenregistre avec le même
+              texte, puis réassemble la piste. Seul ce passage est facturé.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const passage = redo;
+                if (passage) act(() => redoChunk(course.id, passage.id));
+              }}
+            >
+              Refaire
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog>
         <AlertDialogTrigger asChild>

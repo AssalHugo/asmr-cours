@@ -51,6 +51,7 @@ Pour la vraie voix et la mise en ligne, suis [docs/SETUP.md](docs/SETUP.md).
 | `pnpm r2:cors`                                     | Politique CORS du bucket R2                                                     |
 | `pnpm ambience:prepare` · `pnpm ambience:upload`   | Préparation et envoi des ambiances                                              |
 | `pnpm voices:seed`                                 | Création des voix prédéfinies de Murmure                                        |
+| `pnpm voices:list`                                 | Voix du catalogue Gemini qui parlent français                                   |
 
 `pnpm test:e2e` a besoin d'un navigateur qui décode l'AAC (Chrome, Brave) : le Chromium de Playwright ne le fait pas. Il le trouve tout seul, ou via `E2E_BROWSER_PATH`.
 

@@ -14,7 +14,11 @@ import { normalizeSections } from "@/lib/pipeline/sections";
 import { EXTRACT_SYSTEM, renderExtractUser } from "@/lib/prompts/extract";
 import { renderRewriteSystem, renderRewriteUser } from "@/lib/prompts/rewrite";
 import { renderVerifyUser, VERIFY_SYSTEM } from "@/lib/prompts/verify";
-import { VOICE_PRESETS, VOICE_PREVIEW_SEGMENTS } from "@/lib/prompts/voice-presets";
+import {
+  VOICE_PRESETS,
+  VOICE_PRESETS_FR,
+  VOICE_PREVIEW_SEGMENTS,
+} from "@/lib/prompts/voice-presets";
 import fixture from "@/lib/llm/fixtures/course.json";
 
 const text = (chars: number, word = "mémoire") =>
@@ -184,7 +188,17 @@ describe("prompts", () => {
   it("garde des styles de 4 mots au plus et des presets complets", () => {
     for (const style of Object.values(TTS_STYLE))
       expect(style.split(" ").length).toBeLessThanOrEqual(4);
-    expect(VOICE_PRESETS.map((p) => p.label)).toEqual(["Murmure doux", "Murmure grave"]);
+    expect(VOICE_PRESETS.map((p) => `${p.label}:${p.mode}`)).toEqual([
+      "Murmure doux:whisper",
+      "Murmure grave:whisper",
+      "Voix douce:soft",
+      "Voix douce grave:soft",
+    ]);
+    expect(VOICE_PRESETS_FR.map((p) => p.slug)).toEqual(VOICE_PRESETS.map((p) => p.slug));
+    // Doc Gemini (voice design) : une ou deux phrases, sinon la voix perd en stabilité.
+    for (const preset of [...VOICE_PRESETS, ...VOICE_PRESETS_FR]) {
+      expect(preset.description.split(". ").length).toBeLessThanOrEqual(2);
+    }
     expect(VOICE_PREVIEW_SEGMENTS[1]?.breathBefore).toBe(true);
   });
 });
