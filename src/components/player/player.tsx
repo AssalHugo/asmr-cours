@@ -61,7 +61,14 @@ export type PlayerProps = {
   messages: PendingMessage[];
 };
 
-export function Player({ userId, course, chapters, serverPosition, canMark, messages }: PlayerProps) {
+export function Player({
+  userId,
+  course,
+  chapters,
+  serverPosition,
+  canMark,
+  messages,
+}: PlayerProps) {
   const sources: PlayerSources = {
     courseId: course.id,
     title: course.title,
