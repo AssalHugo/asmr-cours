@@ -574,7 +574,10 @@ export async function leaveSharedCourse(courseId: string): Promise<ActionResult>
     .eq("course_id", courseId)
     .eq("recipient_email", user.email.toLowerCase());
   if (error) return fail("Le retrait a échoué. Réessaie.");
-  await admin.from("playback_progress").delete().eq("course_id", courseId).eq("user_id", user.id);
+  await Promise.all([
+    admin.from("playback_progress").delete().eq("course_id", courseId).eq("user_id", user.id),
+    admin.from("course_folders").delete().eq("course_id", courseId).eq("user_id", user.id),
+  ]);
   revalidatePath("/library");
   return { ok: true };
 }

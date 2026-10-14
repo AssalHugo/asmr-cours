@@ -109,6 +109,23 @@ export async function listShareRecipients(courseId: string, ownerId: string): Pr
   return (data ?? []).map((s) => s.recipient_email);
 }
 
+export type Folder = Pick<Tables["folders"]["Row"], "id" | "name">;
+
+export async function listFolders(): Promise<Folder[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("folders").select("id, name").order("name");
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Rangement du compte : identifiant du cours → identifiant de son dossier. */
+export async function listCourseFolders(): Promise<Map<string, string>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("course_folders").select("course_id, folder_id");
+  if (error) throw new Error(error.message);
+  return new Map(data.map((row) => [row.course_id, row.folder_id]));
+}
+
 export async function listSections(courseId: string): Promise<Section[]> {
   const supabase = await createClient();
   const { data } = await supabase

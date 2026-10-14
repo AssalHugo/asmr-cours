@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import {
   getCourse,
+  listCourseFolders,
+  listFolders,
   listPassages,
   listSections,
   listSharedWithMe,
@@ -22,9 +24,11 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const course = await getCourse(id.data);
   if (!course) notFound();
   const owned = course.user_id === user.id;
-  const [recipients, sharedBy] = await Promise.all([
+  const [recipients, sharedBy, folders, placements] = await Promise.all([
     owned ? listShareRecipients(course.id, user.id) : [],
     owned ? null : listSharedWithMe(user.id).then((shared) => shared.get(course.id) ?? null),
+    listFolders(),
+    listCourseFolders(),
   ]);
 
   // Les passages ne servent qu'à en refaire un : inutile de les lire pour un cours en préparation.
@@ -69,6 +73,8 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
         sections={sections}
         owned={owned}
         recipients={recipients}
+        folders={folders}
+        folderId={placements.get(course.id) ?? null}
       />
     </main>
   );
