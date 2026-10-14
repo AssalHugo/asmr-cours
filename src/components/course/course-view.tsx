@@ -3,6 +3,7 @@
 import {
   BellRing,
   Check,
+  Lightbulb,
   Loader2,
   Play,
   RefreshCw,
@@ -19,14 +20,17 @@ import {
   deleteCourse,
   leaveSharedCourse,
   redoChunk,
+  reexplainPassage,
   regenerateSection,
   remixCourse,
+  removePassageMark,
   resumeCourse,
   shareCourse,
   unshareCourse,
 } from "@/app/(app)/actions";
 import { BreathOrb } from "@/components/breath-orb";
 import { Choice } from "@/components/choice";
+import { MoveToFolder, type FolderOption } from "@/components/folder/folder-dialogs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,6 +72,16 @@ export type SectionView = {
   passages: { id: string; caption: string; startMs: number | null }[];
 };
 
+/** Passage marqué « Je n'ai pas compris » depuis le lecteur. */
+export type MarkView = {
+  id: string;
+  caption: string;
+  positionMs: number;
+  chapter: string | null;
+  /** Le passage a été réécrit depuis la marque : il n'y a plus rien à réexpliquer. */
+  stale: boolean;
+};
+
 export type CourseViewProps = {
   course: {
     id: string;
@@ -83,16 +97,30 @@ export type CourseViewProps = {
     actualUsd: number;
   };
   sections: SectionView[];
+  /** Passages marqués depuis le lecteur. Vide hors d'un cours prêt et à soi. */
+  marks: MarkView[];
   /** `false` pour un cours reçu en partage : écoute seule, aucune action sur le cours. */
   owned: boolean;
   /** Adresses avec qui la propriétaire partage ce cours. */
   recipients: string[];
+  folders: FolderOption[];
+  /** Dossier où ce compte a rangé le cours, `null` s'il n'est rangé nulle part. */
+  folderId: string | null;
 };
 
-export function CourseView({ course, sections, owned, recipients }: CourseViewProps) {
+export function CourseView({
+  course,
+  sections,
+  marks,
+  owned,
+  recipients,
+  folders,
+  folderId,
+}: CourseViewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [redo, setRedo] = useState<SectionView["passages"][number] | null>(null);
+  const [reexplain, setReexplain] = useState<MarkView | null>(null);
   const run = useCourseRun(course.id, {
     status: course.status,
     progress: course.progress,
@@ -228,6 +256,12 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
           </div>
           <div className="flex flex-wrap gap-2">
             <OfflineToggle courseId={course.id} ambience={course.ambience} title={course.title} />
+            <MoveToFolder
+              courseId={course.id}
+              courseTitle={course.title}
+              folders={folders}
+              folderId={folderId}
+            />
             {owned ? (
               <>
                 <RemixDialog
@@ -253,6 +287,60 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
               </>
             ) : null}
           </div>
+        </section>
+      ) : null}
+
+      {owned && run.status === "ready" && marks.length > 0 ? (
+        <section className="space-y-4" aria-labelledby="marks-title">
+          <div className="space-y-1">
+            <h2 id="marks-title" className="text-2xl">
+              Passages pas compris
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              Notés depuis le lecteur. Murmure peut réécrire chacun plus simplement, avec un
+              exemple.
+            </p>
+          </div>
+          <ul className="space-y-3">
+            {marks.map((mark) => (
+              <li key={mark.id} className="bg-card space-y-2 rounded-2xl p-4">
+                <p className="text-muted-foreground tabular text-sm">
+                  {formatClock(mark.positionMs)}
+                  {mark.chapter ? ` · ${mark.chapter}` : ""}
+                </p>
+                <p className="line-clamp-3">{mark.caption}</p>
+                {mark.stale ? (
+                  <p className="text-sand text-sm">
+                    Ce passage a été réécrit depuis : il n&apos;y a plus rien à réexpliquer.
+                  </p>
+                ) : null}
+                <div className="-ml-3 flex flex-wrap gap-1">
+                  {mark.stale ? null : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => setReexplain(mark)}
+                    >
+                      <Lightbulb aria-hidden />
+                      Réexplique-moi autrement
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    disabled={pending}
+                    aria-label={`Retirer le passage : ${mark.caption.slice(0, 60)}`}
+                    onClick={() => act(() => removePassageMark(course.id, mark.id))}
+                  >
+                    <X aria-hidden />
+                    Retirer
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
@@ -387,6 +475,36 @@ export function CourseView({ course, sections, owned, recipients }: CourseViewPr
               }}
             >
               Refaire
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={reexplain !== null}
+        onOpenChange={(open) => {
+          if (!open) setReexplain(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réexpliquer ce passage ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              « {reexplain?.caption.slice(0, 160)}
+              {(reexplain?.caption.length ?? 0) > 160 ? "…" : ""} » Murmure le réécrit plus
+              simplement, avec un exemple, puis le réenregistre à la place de l&apos;original. Le
+              reste de la piste ne change pas. Coût : quelques centimes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const mark = reexplain;
+                if (mark) act(() => reexplainPassage(course.id, mark.id));
+              }}
+            >
+              Réexpliquer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

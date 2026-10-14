@@ -6,6 +6,7 @@ import {
   Loader2,
   Lock,
   Mail,
+  MessageCircleQuestionMark,
   MoonStar,
   Pause,
   Play,
@@ -18,6 +19,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { markPassage } from "@/app/(app)/actions";
 import { BreathOrb } from "@/components/breath-orb";
 import { Choice } from "@/components/choice";
 import { Button } from "@/components/ui/button";
@@ -52,11 +55,13 @@ export type PlayerProps = {
   chapters: Chapter[];
   /** Position enregistrée côté serveur (`playback_progress`). */
   serverPosition: { positionMs: number; updatedAt: number } | null;
+  /** « Je n'ai pas compris ce passage » : seulement pour un cours à soi, seul réexplicable. */
+  canMark: boolean;
   /** Messages vocaux pas encore entendus. */
   messages: PendingMessage[];
 };
 
-export function Player({ userId, course, chapters, serverPosition, messages }: PlayerProps) {
+export function Player({ userId, course, chapters, serverPosition, canMark, messages }: PlayerProps) {
   const sources: PlayerSources = {
     courseId: course.id,
     title: course.title,
@@ -90,6 +95,33 @@ export function Player({ userId, course, chapters, serverPosition, messages }: P
 
   const [showText, setShowText] = useState(false);
   const captions = useCaptions(course.id, showText);
+
+  // Le passage en cours est le chunk dont la légende de captions.json a commencé en dernier.
+  const [marking, setMarking] = useState(false);
+  async function markCurrentPassage() {
+    const positionMs = snapshot.positionMs;
+    setMarking(true);
+    try {
+      const list = captions ?? (await fetchCaptions(course.id));
+      const caption = list[captionIndexAt(list, positionMs)];
+      if (!caption) {
+        toast.error("Aucun passage à cet endroit de la piste.");
+        return;
+      }
+      const result = await markPassage({
+        courseId: course.id,
+        positionMs: caption.startMs,
+        caption: caption.text,
+      });
+      if (!result.ok) toast.error(result.message);
+      else if (result.data.already) toast("Ce passage est déjà noté.");
+      else toast.success("Passage noté. Fais-le réexpliquer depuis la page du cours.");
+    } catch {
+      toast.error("Ce passage n'a pas pu être noté. Es-tu hors ligne ?");
+    } finally {
+      setMarking(false);
+    }
+  }
 
   const playing = snapshot.phase === "playing";
   const loading = snapshot.phase === "loading";
@@ -346,6 +378,23 @@ export function Player({ userId, course, chapters, serverPosition, messages }: P
             </DialogContent>
           </Dialog>
 
+          {canMark ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={!ready || marking}
+              aria-label="Je n'ai pas compris ce passage"
+              title="Je n'ai pas compris ce passage"
+              onClick={() => void markCurrentPassage()}
+            >
+              {marking ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <MessageCircleQuestionMark aria-hidden />
+              )}
+            </Button>
+          ) : null}
+
           <Button
             variant="ghost"
             size="icon"
@@ -448,18 +497,21 @@ function LevelSlider({
   );
 }
 
+/** Sous-titres du cours (un par passage) ; liste vide s'ils sont illisibles. */
+async function fetchCaptions(courseId: string): Promise<Caption[]> {
+  const res = await fetch(`/api/audio/${courseId}/captions.json`);
+  const parsed = Caption.array().safeParse(res.ok ? await res.json() : []);
+  return parsed.success ? parsed.data : [];
+}
+
 /** Sous-titres du cours, chargés à la première ouverture du texte. */
 function useCaptions(courseId: string, enabled: boolean): Caption[] | null {
   const [captions, setCaptions] = useState<Caption[] | null>(null);
   useEffect(() => {
     if (!enabled || captions) return;
     let alive = true;
-    void fetch(`/api/audio/${courseId}/captions.json`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: unknown) => {
-        const parsed = Caption.array().safeParse(data);
-        if (alive) setCaptions(parsed.success ? parsed.data : []);
-      })
+    void fetchCaptions(courseId)
+      .then((list) => alive && setCaptions(list))
       .catch(() => alive && setCaptions([]));
     return () => {
       alive = false;

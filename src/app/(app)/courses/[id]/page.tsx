@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { CourseView, type SectionView } from "@/components/course/course-view";
+import { CourseView, type MarkView, type SectionView } from "@/components/course/course-view";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import {
   getCourse,
+  listCourseFolders,
+  listFolders,
+  listPassageMarks,
   listPassages,
   listSections,
   listSharedWithMe,
@@ -13,6 +16,7 @@ import {
   listVoiceMessages,
 } from "@/lib/data";
 import { formatClock, formatDate } from "@/lib/format";
+import { findMarkedPassage } from "@/lib/pipeline/passage";
 import { VerifyReport } from "@/lib/pipeline/schemas";
 
 export const metadata: Metadata = { title: "Cours" };
@@ -24,17 +28,35 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const course = await getCourse(id.data);
   if (!course) notFound();
   const owned = course.user_id === user.id;
-  const [recipients, sharedBy, messages] = await Promise.all([
+  const [recipients, sharedBy, folders, placements, messages] = await Promise.all([
     owned ? listShareRecipients(course.id, user.id) : [],
     owned ? null : listSharedWithMe(user.id).then((shared) => shared.get(course.id) ?? null),
+    listFolders(),
+    listCourseFolders(),
     owned ? listVoiceMessages(course.id, user.id) : [],
   ]);
   // Les messages pas encore entendus restent une surprise : ils passent dans le lecteur.
   const heard = messages.filter((m) => m.played_at !== null);
 
-  // Les passages ne servent qu'à en refaire un : inutile de les lire pour un cours en préparation.
-  const passages = owned && course.status === "ready" ? await listPassages(course.id) : [];
-  const sections: SectionView[] = (await listSections(course.id)).map((s) => {
+  // Passages et marques ne servent qu'à refaire ou réexpliquer un passage : inutiles pour un
+  // cours en préparation.
+  const ready = owned && course.status === "ready";
+  const [passages, rows, marks] = await Promise.all([
+    ready ? listPassages(course.id) : [],
+    listSections(course.id),
+    ready ? listPassageMarks(course.id, user.id) : [],
+  ]);
+  const markViews: MarkView[] = marks.map((mark) => {
+    const passage = findMarkedPassage(passages, mark);
+    return {
+      id: mark.id,
+      caption: mark.caption,
+      positionMs: passage?.start_ms ?? mark.position_ms,
+      chapter: rows.find((s) => s.id === passage?.section_id)?.title ?? null,
+      stale: passage === null,
+    };
+  });
+  const sections: SectionView[] = rows.map((s) => {
     const report = VerifyReport.safeParse(s.verify_report);
     return {
       id: s.id,
@@ -72,8 +94,11 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           actualUsd: Number(course.actual_cost_usd),
         }}
         sections={sections}
+        marks={markViews}
         owned={owned}
         recipients={recipients}
+        folders={folders}
+        folderId={placements.get(course.id) ?? null}
       />
       {heard.length > 0 ? (
         <section className="mt-12 space-y-4">

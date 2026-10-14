@@ -10,6 +10,7 @@ App personnelle pour une ou deux personnes : aucun GPU, tout passe par l'API Gem
 - **Génération suivie en direct**, reprise possible après un échec sans rien repayer.
 - **Contrôle de fidélité** : chaque chapitre est comparé au cours, et les écarts sont affichés.
 - **Lecteur** : chapitres, ±15 s, vitesse, voix et ambiance réglables séparément, texte du passage en cours, minuteur de sommeil, reprise, commandes de l'écran verrouillé.
+- **« Je n'ai pas compris ce passage »** : un bouton du lecteur note le passage en cours ; depuis la page du cours, « Réexplique-moi autrement » le réécrit plus simplement, avec un exemple, pour quelques centimes.
 - **Hors-ligne** : app installable, cours téléchargeables sur l'appareil.
 - **Studio voix** : création d'une voix à partir d'une description.
 - **Budget** : jauge du mois, coût estimé et réel de chaque cours, refus au-delà du plafond.

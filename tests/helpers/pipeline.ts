@@ -21,6 +21,7 @@ export type Calls = {
   extract: number;
   rewrite: number;
   verify: number;
+  reexplain: number;
   tts: number;
   waits: number;
 };
@@ -52,7 +53,14 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const root = await mkdtemp(join(tmpdir(), "murmure-test-"));
   const storage = createLocalStorage(root);
   const repo = new MemoryRepo();
-  const calls: Calls = { extract: 0, rewrite: 0, verify: 0, tts: 0, waits: 0 };
+  const calls: Calls = {
+    extract: 0,
+    rewrite: 0,
+    verify: 0,
+    reexplain: 0,
+    tts: 0,
+    waits: 0,
+  };
   const reports: RunProgress[] = [];
 
   const baseLlm = { ...createMockLlm(), ...options.llm };
@@ -61,6 +69,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     extract: (input) => (calls.extract++, baseLlm.extract(input)),
     rewrite: (input) => (calls.rewrite++, baseLlm.rewrite(input)),
     verify: (section, script) => (calls.verify++, baseLlm.verify(section, script)),
+    reexplain: (input) => (calls.reexplain++, baseLlm.reexplain(input)),
   };
   const baseTts = { ...createMockTts(), ...options.tts };
   const tts: TtsProvider = {

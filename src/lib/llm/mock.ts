@@ -44,6 +44,29 @@ export function createMockLlm(): LlmProvider {
       return result(Script.parse({ segments: mockSegments(section) }));
     },
 
+    async reexplain({ passage }) {
+      // Même texte, encadré d'une phrase simple et d'un exemple : assez pour rester dans les
+      // bornes de longueur et changer le hash des passages concernés.
+      return result(
+        Script.parse({
+          segments: [
+            { text: "Voyons cela tout simplement.", pauseAfterMs: 500, breathBefore: false },
+            // L'exemple suit sans grande pause : le passage reste d'un seul tenant.
+            ...passage.map((s) => ({
+              ...s,
+              pauseAfterMs: Math.min(s.pauseAfterMs, 600),
+              breathBefore: false,
+            })),
+            {
+              text: "Par exemple, imagine que tu l'expliques à une amie, avec tes propres mots.",
+              pauseAfterMs: passage.at(-1)?.pauseAfterMs ?? 1400,
+              breathBefore: true,
+            },
+          ],
+        }),
+      );
+    },
+
     async verify() {
       return result({ ok: true, missingFacts: [], alteredFacts: [], inventedClaims: [] });
     },

@@ -44,6 +44,7 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
       messages={messages
         .filter((m) => m.played_at === null)
         .map((m) => ({ id: m.id, atMs: m.at_ms, durationMs: m.duration_ms }))}
+      canMark={course.user_id === user.id}
       serverPosition={
         progress
           ? { positionMs: progress.position_ms, updatedAt: Date.parse(progress.updated_at) }

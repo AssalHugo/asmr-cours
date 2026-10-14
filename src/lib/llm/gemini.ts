@@ -4,6 +4,7 @@ import { mediaContents } from "@/lib/gemini/files";
 import { generateJson } from "@/lib/gemini/text";
 import { ExtractedCourse, Script, VerifyReport } from "@/lib/pipeline/schemas";
 import { EXTRACT_SYSTEM, renderExtractUser } from "@/lib/prompts/extract";
+import { renderReexplainSystem, renderReexplainUser } from "@/lib/prompts/reexplain";
 import { renderRewriteSystem, renderRewriteUser } from "@/lib/prompts/rewrite";
 import { renderVerifyUser, VERIFY_SYSTEM } from "@/lib/prompts/verify";
 import type { LlmProvider } from "./provider";
@@ -34,6 +35,16 @@ export function createGeminiLlm(): LlmProvider {
         model: textModel,
         system: renderRewriteSystem(ctx),
         input: renderRewriteUser(section, feedback),
+        schema: Script,
+      });
+      return { data, usage, model: textModel };
+    },
+
+    async reexplain({ ctx, ...request }) {
+      const { data, usage } = await generateJson({
+        model: textModel,
+        system: renderReexplainSystem(ctx),
+        input: renderReexplainUser(request),
         schema: Script,
       });
       return { data, usage, model: textModel };

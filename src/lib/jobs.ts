@@ -4,6 +4,7 @@ import { env, triggerEnv } from "@/lib/env";
 import { createPipelineDeps } from "@/lib/pipeline/runtime";
 import type {
   GenerateCoursePayload,
+  ReexplainChunkPayload,
   RedoChunkPayload,
   RegenerateSectionPayload,
   RemixPayload,
@@ -11,12 +12,14 @@ import type {
 } from "@/lib/pipeline/schemas";
 import type { generateCourseTask } from "@/trigger/generate-course";
 import type { redoChunkTask } from "@/trigger/redo-chunk";
+import type { reexplainChunkTask } from "@/trigger/reexplain-chunk";
 import type { regenerateSectionTask } from "@/trigger/regenerate-section";
 import type { remixTask } from "@/trigger/remix";
 import {
   failCourse,
   generateCourse,
   redoChunk,
+  reexplainChunk,
   regenerateSection,
   remixCourse,
   voiceSample,
@@ -27,6 +30,7 @@ export type Job =
   | { kind: "generate-course"; payload: GenerateCoursePayload }
   | { kind: "regenerate-section"; payload: RegenerateSectionPayload }
   | { kind: "redo-chunk"; payload: RedoChunkPayload }
+  | { kind: "reexplain-chunk"; payload: ReexplainChunkPayload }
   | { kind: "remix"; payload: RemixPayload };
 
 /** Files d'attente du mode inline : une génération à la fois par utilisatrice, comme sous Trigger.dev. */
@@ -42,6 +46,7 @@ async function runInline(job: Job): Promise<void> {
     if (job.kind === "generate-course") await generateCourse(deps, job.payload);
     else if (job.kind === "regenerate-section") await regenerateSection(deps, job.payload);
     else if (job.kind === "redo-chunk") await redoChunk(deps, job.payload);
+    else if (job.kind === "reexplain-chunk") await reexplainChunk(deps, job.payload);
     else await remixCourse(deps, job.payload);
   } catch (error) {
     console.error(`[murmure] ${job.kind} en échec`, error);
@@ -79,7 +84,13 @@ export async function startJob(job: Job): Promise<{ runId: string | null }> {
           )
         : job.kind === "redo-chunk"
           ? await tasks.trigger<typeof redoChunkTask>("redo-chunk", job.payload, options)
-          : await tasks.trigger<typeof remixTask>("remix", job.payload, options);
+          : job.kind === "reexplain-chunk"
+            ? await tasks.trigger<typeof reexplainChunkTask>(
+                "reexplain-chunk",
+                job.payload,
+                options,
+              )
+            : await tasks.trigger<typeof remixTask>("remix", job.payload, options);
   return { runId: handle.id };
 }
 

@@ -52,6 +52,18 @@ export const ShareInput = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email("Cette adresse e-mail n'est pas valide.")),
 });
 
+const folderName = z
+  .string()
+  .trim()
+  .min(1, "Donne un nom à ce dossier.")
+  .max(60, "Ce nom dépasse 60 caractères.");
+
+/** Création d'un dossier ; avec `courseId`, le cours y est rangé dans la foulée. */
+export const CreateFolderInput = z.object({ name: folderName, courseId: z.uuid().optional() });
+export const RenameFolderInput = z.object({ folderId: z.uuid(), name: folderName });
+/** `folderId` nul : le cours retourne hors de tout dossier. */
+export const MoveCourseInput = z.object({ courseId: z.uuid(), folderId: z.uuid().nullable() });
+
 export const SettingsInput = z.object({
   displayName: z.string().trim().max(80),
   defaultVoiceId: z.uuid().nullable(),
@@ -80,3 +92,15 @@ export const fail = (
   message,
   reason,
 });
+
+/** « Je n'ai pas compris ce passage » : instant et légende en cours dans le lecteur. */
+export const MarkPassageInput = z.object({
+  courseId: z.uuid(),
+  positionMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 60 * 60 * 1000),
+  caption: z.string().trim().min(1).max(2000),
+});
+export type MarkPassageInput = z.infer<typeof MarkPassageInput>;
