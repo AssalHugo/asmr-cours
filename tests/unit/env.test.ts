@@ -14,6 +14,8 @@ describe("env", () => {
   it("normalise l'allowlist et traite les chaînes vides comme absentes", () => {
     const env = parseServerEnv({ ALLOWED_EMAILS: " A@x.fr, b@y.fr ,", GEMINI_API_KEY: "" });
     expect(env.ALLOWED_EMAILS).toEqual(["a@x.fr", "b@y.fr"]);
+    expect(env.ADMIN_EMAILS).toEqual([]);
+    expect(parseServerEnv({ ADMIN_EMAILS: " A@x.fr " }).ADMIN_EMAILS).toEqual(["a@x.fr"]);
     expect(env.GEMINI_API_KEY).toBeUndefined();
   });
 

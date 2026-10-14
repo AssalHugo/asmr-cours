@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioLines, BookOpen, Plus, SlidersHorizontal } from "lucide-react";
+import { AudioLines, BookOpen, Plus, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -12,17 +12,20 @@ const ITEMS = [
   { href: "/settings", label: "Réglages", icon: SlidersHorizontal },
 ] as const;
 
+const ADMIN_ITEM = { href: "/admin", label: "Admin", icon: ShieldCheck } as const;
+
 /** Navigation basse : tout se fait au pouce, d'une seule main. */
-export function AppNav() {
+export function AppNav({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
   if (pathname.startsWith("/play/")) return null;
+  const items = admin ? [...ITEMS, ADMIN_ITEM] : ITEMS;
   return (
     <nav
       aria-label="Navigation principale"
       className="border-border bg-background/85 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
     >
       <ul className="mx-auto flex max-w-xl items-stretch justify-between px-2">
-        {ITEMS.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active =
             pathname === href ||
             pathname.startsWith(`${href}/`) ||

@@ -34,6 +34,7 @@ Règles Next.js propres à cette version : @AGENTS.md
 - Toutes les pages sont dynamiques (session). Les lectures passent par `src/lib/data.ts` (client de session, RLS).
 - `courses` : le navigateur ne lit que les colonnes de `COURSE_COLUMNS` (`select("*")` avec la session est refusé) ; les colonnes internes se lisent avec la clé secrète, filtrées par `user_id`.
 - Dépenses : toujours agrégées en SQL (`spend_since`, `course_cost`, vues), jamais additionnées ligne à ligne (plafond de 1 000 lignes).
+- Mode admin (`/admin`, `ADMIN_EMAILS`) : `requireAdmin()` d'abord (404 sinon), puis lectures avec la clé secrète dans `src/lib/admin.ts`. Agrégats par fonctions SQL `admin_*`, exécutables par `service_role` seulement.
 - Inscriptions Supabase fermées : le compte d'une adresse invitée est créé par `sendMagicLink` avec la clé secrète.
 - FFmpeg : toujours `spawn` avec un tableau d'arguments.
 - Textes d'interface en français.

@@ -29,3 +29,30 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / 1024 / 1024)} Mo`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1).replace(".", ",")} Go`;
 }
+
+/** « 14 oct. 2026, 09:12 ». */
+export function formatDateTime(iso: string): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+/** « oct. 26 » pour une clé de mois `AAAA-MM-01`. */
+export function formatMonth(iso: string): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "short",
+    year: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(iso));
+}
+
+/** Nombre compact : « 1,2 M », « 35 k ». */
+export function formatCount(value: number): string {
+  return new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 }).format(
+    value,
+  );
+}
