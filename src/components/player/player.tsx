@@ -344,7 +344,7 @@ export function Player({ userId, course, chapters, serverPosition, canMark }: Pl
             <Button
               variant="ghost"
               size="icon"
-              disabled={!ready || marking || snapshot.positionMs <= 0}
+              disabled={!ready || marking}
               aria-label="Je n'ai pas compris ce passage"
               title="Je n'ai pas compris ce passage"
               onClick={() => void markCurrentPassage()}

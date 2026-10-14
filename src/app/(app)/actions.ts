@@ -470,6 +470,7 @@ export async function removePassageMark(courseId: string, markId: string): Promi
     .from("passage_marks")
     .delete()
     .eq("id", markId)
+    .eq("course_id", courseId)
     .eq("user_id", user.id);
   if (error) return fail("Le retrait a échoué. Réessaie.");
   revalidatePath(`/courses/${courseId}`);
