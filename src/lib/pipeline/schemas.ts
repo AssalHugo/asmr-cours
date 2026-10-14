@@ -99,6 +99,13 @@ export const RegenerateSectionPayload = z.object({
 });
 export type RegenerateSectionPayload = z.infer<typeof RegenerateSectionPayload>;
 
+export const RedoChunkPayload = z.object({
+  courseId: z.uuid(),
+  userId: z.uuid(),
+  chunkId: z.uuid(),
+});
+export type RedoChunkPayload = z.infer<typeof RedoChunkPayload>;
+
 export const RemixPayload = z.object({
   courseId: z.uuid(),
   userId: z.uuid(),

@@ -4,6 +4,8 @@ import {
   chunkHash,
   chunkSection,
   renderGeminiChunkText,
+  speechDurationPlausible,
+  ttsDelivery,
 } from "@/lib/pipeline/chunker";
 import type { Segment } from "@/lib/pipeline/schemas";
 
@@ -107,5 +109,42 @@ describe("chunkHash", () => {
     ]) {
       expect(other).not.toBe(base);
     }
+  });
+
+  it("donne à une prise refaite un hash propre au cours", () => {
+    const base = chunkHash("m", "v", "whispering", "Bonjour.");
+    const take = chunkHash("m", "v", "whispering", "Bonjour.", "course-a:1");
+    expect(take).not.toBe(base);
+    expect(chunkHash("m", "v", "whispering", "Bonjour.", "course-a:2")).not.toBe(take);
+    expect(chunkHash("m", "v", "whispering", "Bonjour.", "course-b:1")).not.toBe(take);
+  });
+});
+
+describe("ttsDelivery", () => {
+  it("porte le mode par le style en Express, par une balise en Éco", () => {
+    expect(ttsDelivery("whisper", "express")).toEqual({ style: "whispering", tag: "" });
+    expect(ttsDelivery("soft", "express")).toEqual({ style: "soft and calm", tag: "" });
+    expect(ttsDelivery("whisper", "eco")).toEqual({ style: "", tag: "<whispers> " });
+    // Aucune balise ne dit « doux » : en Éco, ce mode repose sur la voix seule.
+    expect(ttsDelivery("soft", "eco")).toEqual({ style: "", tag: "" });
+  });
+});
+
+describe("speechDurationPlausible", () => {
+  it("accepte un débit de parole normal, lent ou rapide", () => {
+    expect(speechDurationPlausible(240, 20_000)).toBe(true);
+    expect(speechDurationPlausible(240, 40_000)).toBe(true);
+    expect(speechDurationPlausible(240, 10_000)).toBe(true);
+  });
+
+  it("rejette un passage tronqué, vide ou parti en roue libre", () => {
+    expect(speechDurationPlausible(240, 3_000)).toBe(false);
+    expect(speechDurationPlausible(240, 0)).toBe(false);
+    expect(speechDurationPlausible(240, 120_000)).toBe(false);
+  });
+
+  it("ne juge pas le débit d'un passage très court", () => {
+    expect(speechDurationPlausible(8, 300)).toBe(true);
+    expect(speechDurationPlausible(8, 4_000)).toBe(true);
   });
 });

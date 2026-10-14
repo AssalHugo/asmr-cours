@@ -1,12 +1,13 @@
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getAmbience, SYNTHETIC_AMBIENCE_ID } from "@/lib/ambiences";
 import { buildChapters, buildTimeline, renderFfmetadata } from "@/lib/audio/chapters";
 import { probeDurationMs, runFfmpeg } from "@/lib/audio/ffmpeg";
-import { encodeVoiceArgs, masterArgs } from "@/lib/audio/master";
+import { encodeVoiceArgs } from "@/lib/audio/master";
 import { synthesizeAmbience } from "@/lib/audio/ambience-synth";
 import { mixArgs } from "@/lib/audio/mix";
-import { concatArgs, concatList, silenceArgs, trimSilenceArgs } from "@/lib/audio/silence";
+import { masterVoice, trimChunk } from "@/lib/audio/render";
+import { concatArgs, concatList, gainArgs, levelGainsDb, silenceArgs } from "@/lib/audio/silence";
 import { parseWav } from "@/lib/audio/wav";
 import { mapLimit } from "@/lib/retry";
 import { keys } from "@/lib/storage/keys";
@@ -56,12 +57,23 @@ export async function assembleAndPublish(ctx: Ctx, extra: CoursePatch = {}): Pro
     // Chunks : téléchargement puis retrait des silences de bord, une fois par hash.
     const hashes = [...new Set(chunks.map((c) => c.hash))];
     const durations = new Map<string, number>();
-    await mapLimit(hashes, 4, async (hash) => {
+    const levels = await mapLimit(hashes, 4, async (hash) => {
       const raw = join(dir, `raw-${hash}.wav`);
-      const trimmed = join(dir, `chunk-${hash}.wav`);
+      const trimmed = join(dir, `trim-${hash}.wav`);
       await storage.downloadFile(keys.ttsCache(hash), raw);
-      await runFfmpeg(trimSilenceArgs(raw, trimmed));
+      const level = await trimChunk(raw, trimmed);
       durations.set(hash, parseWav(await readFile(trimmed)).durationMs);
+      return level;
+    });
+
+    // Chaque appel TTS a son niveau : les chunks sont ramenés au niveau médian du cours.
+    const gains = levelGainsDb(levels);
+    await mapLimit(hashes, 4, async (hash, index) => {
+      const trimmed = join(dir, `trim-${hash}.wav`);
+      const leveled = join(dir, `chunk-${hash}.wav`);
+      const gain = gains[index] ?? 0;
+      if (gain === 0) await rename(trimmed, leveled);
+      else await runFfmpeg(gainArgs(trimmed, leveled, gain));
     });
 
     // Silences de durée exacte, mis en cache par durée.
@@ -108,7 +120,7 @@ export async function assembleAndPublish(ctx: Ctx, extra: CoursePatch = {}): Pro
     // Mastering, voix seule, puis pré-mix avec l'ambiance du cours.
     await setStatus(ctx, "mastering");
     const master = join(dir, "voice_master.wav");
-    await runFfmpeg(masterArgs(voiceRaw, master));
+    await masterVoice(voiceRaw, master);
     const durationMs = await probeDurationMs(master);
 
     const voice = join(dir, "voice.m4a");

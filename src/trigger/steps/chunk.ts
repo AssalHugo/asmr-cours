@@ -1,5 +1,6 @@
-import { chunkHash, chunkSection, TTS_STYLE } from "@/lib/pipeline/chunker";
-import type { NewChunk, VoiceRow } from "@/lib/pipeline/repo";
+import { z } from "zod";
+import { chunkHash, chunkSection, ttsDelivery } from "@/lib/pipeline/chunker";
+import type { CourseRow, NewChunk, VoiceRow } from "@/lib/pipeline/repo";
 import { Script } from "@/lib/pipeline/schemas";
 import { keys } from "@/lib/storage/keys";
 import { PipelineError, type Ctx } from "./context";
@@ -23,6 +24,29 @@ export async function courseVoice(ctx: Ctx): Promise<VoiceRow> {
   return voice;
 }
 
+const ChunkTakes = z.record(z.string(), z.number().int().positive());
+
+/** Prises refaites du cours : hash d'origine du passage → numéro de la prise en cours. */
+export function chunkTakes(course: Pick<CourseRow, "chunk_takes">): Record<string, number> {
+  const parsed = ChunkTakes.safeParse(course.chunk_takes);
+  return parsed.success ? parsed.data : {};
+}
+
+/** Hash d'un passage pour une prise donnée ; la prise 0 est celle d'origine, partagée. */
+export function takeHash(
+  course: Pick<CourseRow, "id">,
+  base: { model: string; voiceId: string; style: string; text: string },
+  take: number,
+): string {
+  return chunkHash(
+    base.model,
+    base.voiceId,
+    base.style,
+    base.text,
+    take > 0 ? `${course.id}:${take}` : undefined,
+  );
+}
+
 /**
  * §8.4 — Découpe tous les scripts en chunks. Les chunks sont un état dérivé : ils sont
  * recalculés à chaque passage, et ceux dont le hash n'a pas changé gardent leur audio.
@@ -31,7 +55,8 @@ export async function chunkStep(ctx: Ctx): Promise<void> {
   const { repo, ai } = ctx.deps;
   const voice = await courseVoice(ctx);
   const model = ttsModel(ctx);
-  const style = TTS_STYLE[ctx.course.mode];
+  const { style, tag } = ttsDelivery(ctx.course.mode, ctx.course.tier);
+  const takes = chunkTakes(ctx.course);
 
   const previous = new Map(
     (await repo.listChunks(ctx.course.id))
@@ -44,8 +69,9 @@ export async function chunkStep(ctx: Ctx): Promise<void> {
   for (const section of sections) {
     if (section.script === null) throw new PipelineError("Une section n'a pas encore de script.");
     for (const plan of chunkSection(Script.parse(section.script).segments)) {
-      const text = ai.tts.renderChunkText(plan.segments);
-      const hash = chunkHash(model, voice.provider_voice_id, style, text);
+      const text = tag + ai.tts.renderChunkText(plan.segments);
+      const base = { model, voiceId: voice.provider_voice_id, style, text };
+      const hash = takeHash(ctx.course, base, takes[takeHash(ctx.course, base, 0)] ?? 0);
       const cached = previous.has(hash);
       rows.push({
         section_id: section.id,

@@ -400,6 +400,33 @@ export async function regenerateSection(
   );
 }
 
+/** Réenregistre un passage dont la prise est ratée : même texte, seul ce passage est payé. */
+export async function redoChunk(
+  courseId: string,
+  chunkId: string,
+): Promise<ActionResult<{ courseId: string }>> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  if (!z.uuid().safeParse(chunkId).success) return fail("Ce passage n'existe plus.");
+  const course = await ownCourse(user, courseId);
+  if (!course) return fail("Ce cours n'existe plus.");
+  if (course.status !== "ready") return fail("Attends que le cours soit prêt.");
+  const refusal = await budgetRefusal(user);
+  if (refusal) return refusal;
+
+  const refused = await transition(user, courseId, "ready", {
+    status: "synthesizing",
+    progress: 38,
+  });
+  if (refused) return refused;
+  return launch(
+    user,
+    courseId,
+    { kind: "redo-chunk", payload: { courseId, userId: user.id, chunkId } },
+    "ready",
+  );
+}
+
 /** Change l'ambiance du pré-mix : FFmpeg seul, aucun coût IA. */
 export async function remixCourse(raw: unknown): Promise<ActionResult<{ courseId: string }>> {
   const user = await getUser();

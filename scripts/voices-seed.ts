@@ -3,13 +3,13 @@
  * et les rattache à chaque compte existant. À lancer une fois par projet (dev, puis prod).
  * Usage : pnpm voices:seed [--fr]
  *   --fr  utilise les descriptions rédigées en français, pour comparer à l'oreille
- * Les échantillons sont écrits dans .data/voices-seed/ et dans le stockage.
+ * L'extrait brut renvoyé par Gemini est écrit dans .data/voices-seed/. L'aperçu fidèle à un
+ * cours (texte fixe, mastering) est généré à la première écoute dans le Studio voix.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { aiProviders } from "@/lib/ai";
 import { env } from "@/lib/env";
 import { VOICE_PRESETS, VOICE_PRESETS_FR } from "@/lib/prompts/voice-presets";
-import { keys, storage } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function main() {
@@ -38,19 +38,22 @@ async function main() {
       .eq("label", label)
       .limit(1);
     let providerVoiceId = existing?.[0]?.provider_voice_id;
-    let sample: Buffer | null = null;
 
     if (!providerVoiceId) {
       const voice = await ai.voices.design({
         description: preset.description,
         label,
         model: ai.models.tts,
+        gender: preset.gender,
       });
       providerVoiceId = voice.providerVoiceId;
-      sample = voice.sampleWav;
       console.log(`✓ ${label} créée dans le projet ${e.APP_ENV} : ${providerVoiceId}`);
-      if (sample)
-        await writeFile(`.data/voices-seed/${preset.slug}${french ? "-fr" : ""}.wav`, sample);
+      if (voice.sampleWav) {
+        await writeFile(
+          `.data/voices-seed/${preset.slug}${french ? "-fr" : ""}.wav`,
+          voice.sampleWav,
+        );
+      }
     } else {
       console.log(`· ${label} existe déjà (${providerVoiceId})`);
     }
@@ -64,25 +67,16 @@ async function main() {
         .eq("provider_voice_id", providerVoiceId)
         .limit(1);
       if (own && own.length > 0) continue;
-      const { data: row, error: insertError } = await admin
-        .from("voices")
-        .insert({
-          user_id: profile.id,
-          env: e.APP_ENV,
-          provider: ai.mock ? "mock" : "gemini",
-          provider_voice_id: providerVoiceId,
-          kind: "designed",
-          label,
-          description: preset.description,
-        })
-        .select("id")
-        .single();
+      const { error: insertError } = await admin.from("voices").insert({
+        user_id: profile.id,
+        env: e.APP_ENV,
+        provider: ai.mock ? "mock" : "gemini",
+        provider_voice_id: providerVoiceId,
+        kind: "designed",
+        label,
+        description: preset.description,
+      });
       if (insertError) throw new Error(insertError.message);
-      if (sample) {
-        const key = keys.voiceSample(row.id, "whisper");
-        await storage().put(key, sample, "audio/wav");
-        await admin.from("voices").update({ sample_key: key }).eq("id", row.id);
-      }
     }
   }
   console.log("Terminé. Écoute les échantillons dans le Studio voix, ou dans .data/voices-seed/.");

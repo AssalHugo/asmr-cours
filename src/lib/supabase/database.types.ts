@@ -75,6 +75,7 @@ export type Database = {
           ambience_gain_db: number;
           batch_job_id: string | null;
           batch_submitted_at: string | null;
+          chunk_takes: Json;
           created_at: string;
           duration_ms: number | null;
           error: string | null;
@@ -102,6 +103,7 @@ export type Database = {
           ambience_gain_db?: number;
           batch_job_id?: string | null;
           batch_submitted_at?: string | null;
+          chunk_takes?: Json;
           created_at?: string;
           duration_ms?: number | null;
           error?: string | null;
@@ -128,6 +130,7 @@ export type Database = {
           ambience_gain_db?: number;
           batch_job_id?: string | null;
           batch_submitted_at?: string | null;
+          chunk_takes?: Json;
           created_at?: string;
           duration_ms?: number | null;
           error?: string | null;

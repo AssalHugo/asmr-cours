@@ -8,6 +8,7 @@ import {
   getCourse,
   listCourseFolders,
   listFolders,
+  listPassages,
   listSections,
   listSharedWithMe,
   listShareRecipients,
@@ -30,6 +31,8 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
     listCourseFolders(),
   ]);
 
+  // Les passages ne servent qu'à en refaire un : inutile de les lire pour un cours en préparation.
+  const passages = owned && course.status === "ready" ? await listPassages(course.id) : [];
   const sections: SectionView[] = (await listSections(course.id)).map((s) => {
     const report = VerifyReport.safeParse(s.verify_report);
     return {
@@ -39,6 +42,9 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
       verified: s.verified,
       checked: s.verify_report !== null,
       report: report.success ? report.data : null,
+      passages: passages
+        .filter((p) => p.section_id === s.id)
+        .map((p) => ({ id: p.id, caption: p.caption, startMs: p.start_ms })),
     };
   });
 

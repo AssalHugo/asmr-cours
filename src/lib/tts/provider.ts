@@ -48,7 +48,12 @@ export type DesignedVoice = { providerVoiceId: string; sampleWav: Buffer | null 
 
 /** Création de voix (Studio voix). */
 export interface VoiceDesigner {
-  design(input: { description: string; label: string; model: string }): Promise<DesignedVoice>;
+  design(input: {
+    description: string;
+    label: string;
+    model: string;
+    gender?: "female" | "male";
+  }): Promise<DesignedVoice>;
   replicate?(input: {
     label: string;
     model: string;
