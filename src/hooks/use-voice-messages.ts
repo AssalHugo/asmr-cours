@@ -28,6 +28,8 @@ export function useVoiceMessages(
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const resumeRef = useRef(false);
   const unlockedRef = useRef(false);
+  /** Messages dont la lecture automatique a été refusée : ils attendent un toucher. */
+  const refusedRef = useRef(new Set<string>());
 
   const audio = useCallback(() => {
     audioRef.current ??= new Audio();
@@ -93,6 +95,7 @@ export function useVoiceMessages(
       el.play().catch(() => {
         if (fromGesture) return finish(message);
         // Lecture automatique refusée : le cours continue, le message attend un toucher.
+        refusedRef.current.add(message.id);
         setState({ kind: "waiting", message });
         if (resumeRef.current) {
           resumeRef.current = false;
@@ -116,7 +119,8 @@ export function useVoiceMessages(
   // Un message au lancement passe avant le cours, même si elle appuie directement sur lecture.
   useEffect(() => {
     if (!engine || phase !== "playing" || state.kind !== "waiting") return;
-    if (state.message.atMs !== null) return;
+    // Déjà refusé : sans ce garde-fou, le cours relancé redéclencherait l'essai en boucle.
+    if (state.message.atMs !== null || refusedRef.current.has(state.message.id)) return;
     const frame = requestAnimationFrame(() => start(state.message, false));
     return () => cancelAnimationFrame(frame);
   }, [engine, phase, state, start]);
