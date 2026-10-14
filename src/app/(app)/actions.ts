@@ -578,3 +578,19 @@ export async function leaveSharedCourse(courseId: string): Promise<ActionResult>
   revalidatePath("/library");
   return { ok: true };
 }
+
+/** Message vocal entendu (ou passé) : il ne se rejouera plus, mais reste dans la liste du cours. */
+export async function markVoiceMessagePlayed(messageId: string): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  const id = z.uuid().safeParse(messageId);
+  if (!id.success) return fail("Message introuvable.");
+  const { error } = await createAdminClient()
+    .from("voice_messages")
+    .update({ played_at: new Date().toISOString() })
+    .eq("id", id.data)
+    .eq("recipient_id", user.id)
+    .is("played_at", null);
+  if (error) return fail("Le message n'a pas pu être marqué comme entendu.");
+  return { ok: true };
+}

@@ -9,6 +9,8 @@ const CONTENT_TYPES: Record<string, string> = {
   json: "application/json",
   wav: "audio/wav",
   m4a: "audio/mp4",
+  webm: "audio/webm",
+  ogg: "audio/ogg",
   flac: "audio/flac",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",

@@ -27,6 +27,9 @@ export const keys = {
     `${keys.coursePrefix(courseId)}mix-${slug(ambience)}.m4a`,
   chapters: (courseId: string) => `${keys.coursePrefix(courseId)}chapters.json`,
   captions: (courseId: string) => `${keys.coursePrefix(courseId)}captions.json`,
+  /** Sous le préfixe du cours : effacé avec lui. */
+  voiceMessage: (courseId: string, messageId: string, extension: string) =>
+    `${keys.coursePrefix(courseId)}messages/${uuid(messageId)}.${slug(extension)}`,
   ambienceMaster: (id: string) => `ambience/master/${slug(id)}.flac`,
   ambienceWeb: (id: string) => `ambience/web/${slug(id)}.m4a`,
   // « v2 » : aperçu masterisé au modèle standard ; les anciens extraits ne sont plus servis.

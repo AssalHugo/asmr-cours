@@ -278,3 +278,20 @@ export function billingModels(): { models: EstimateModels; mock: boolean } {
         },
   };
 }
+
+export type VoiceMessage = Pick<
+  Tables["voice_messages"]["Row"],
+  "id" | "duration_ms" | "at_ms" | "played_at" | "created_at"
+>;
+
+/** Messages vocaux laissés pour l'utilisatrice dans ce cours (RLS : destinataire seulement). */
+export async function listVoiceMessages(courseId: string, userId: string): Promise<VoiceMessage[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("voice_messages")
+    .select("id, duration_ms, at_ms, played_at, created_at")
+    .eq("course_id", courseId)
+    .eq("recipient_id", userId)
+    .order("created_at");
+  return data ?? [];
+}

@@ -26,7 +26,10 @@ async function resolveRequest(context: Context) {
 export async function PUT(request: Request, context: Context) {
   const resolved = await resolveRequest(context);
   if ("error" in resolved) return resolved.error;
-  if (!resolved.key.startsWith(`uploads/${resolved.user.id}/`)) {
+  const ownUpload = resolved.key.startsWith(`uploads/${resolved.user.id}/`);
+  const voiceMessage =
+    resolved.user.isAdmin && /^courses\/[0-9a-f-]{36}\/messages\//.test(resolved.key);
+  if (!ownUpload && !voiceMessage) {
     return new NextResponse(null, { status: 403 });
   }
   const body = Buffer.from(await request.arrayBuffer());

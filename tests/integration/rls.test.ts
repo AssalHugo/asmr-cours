@@ -138,6 +138,42 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
     expect((await users[1]!.client.from("course_costs").select("course_id")).data).toEqual([]);
   });
 
+  it("montre ses messages vocaux à la seule destinataire, sans la clé de stockage", async () => {
+    const [a, b] = [users[0]!, users[1]!];
+    const inserted = await admin
+      .from("voice_messages")
+      .insert({
+        course_id: courseOfA,
+        sender_id: b.id,
+        recipient_id: a.id,
+        storage_key: `courses/${courseOfA}/messages/x.webm`,
+        mime: "audio/webm",
+        duration_ms: 4000,
+        at_ms: null,
+      })
+      .select("id")
+      .single();
+    if (inserted.error) throw inserted.error;
+    const mine = await a.client.from("voice_messages").select("id, at_ms, played_at");
+    expect(mine.data).toEqual([{ id: inserted.data.id, at_ms: null, played_at: null }]);
+    expect((await a.client.from("voice_messages").select("storage_key")).error).not.toBeNull();
+    expect((await b.client.from("voice_messages").select("id")).data).toEqual([]);
+    const update = await a.client
+      .from("voice_messages")
+      .update({ played_at: new Date().toISOString() })
+      .eq("id", inserted.data.id)
+      .select("id");
+    expect(update.data ?? []).toEqual([]);
+    const forged = await b.client.from("voice_messages").insert({
+      course_id: courseOfA,
+      recipient_id: a.id,
+      storage_key: "x",
+      mime: "audio/webm",
+      duration_ms: 1,
+    });
+    expect(forged.error).not.toBeNull();
+  });
+
   it("réserve les agrégats du mode admin à la clé secrète", async () => {
     const a = users[0]!.client;
     const since = new Date(0).toISOString();
