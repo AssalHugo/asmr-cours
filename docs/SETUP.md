@@ -68,6 +68,7 @@ En mode Éco, le style par tour (« whispering ») n'est pas exprimable dans une
 3. **Authentication → URL Configuration** : _Site URL_ = l'adresse de prod (ex. `https://murmure.vercel.app`). Dans _Redirect URLs_, ajoute `https://<ton-domaine>/auth/confirm` et `http://localhost:3000/auth/confirm`.
 4. **Authentication → Emails → Magic Link** et **Confirm signup** : remplace le corps des deux modèles par celui de `supabase/templates/magic_link.html`. Le lien doit pointer vers `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` : c'est ce qui permet d'ouvrir le lien sur un autre appareil que celui qui l'a demandé.
 5. Renseigne `ALLOWED_EMAILS` (adresses séparées par des virgules). Une liste vide ne laisse entrer personne.
+   Facultatif : `ADMIN_EMAILS` (même format, adresses déjà dans `ALLOWED_EMAILS`) ouvre l'onglet **Admin** à ces comptes : tous les cours de tous les comptes, leur audio, et les dépenses par mois, par compte et par étape.
 6. **Authentication → Sign In / Providers** : désactive **Allow new users to sign up** et laisse **Confirm email** activé. C'est ce réglage qui rend l'allowlist étanche : l'app crée elle-même le compte d'une adresse invitée (avec la clé secrète) au moment d'envoyer son premier lien. Inscriptions ouvertes, n'importe qui pourrait se créer une session en appelant l'API Supabase avec la clé publique.
 
 L'envoi d'emails intégré à Supabase est limité à quelques messages par heure : suffisant pour deux personnes.
@@ -134,19 +135,19 @@ Pour développer contre Trigger.dev plutôt qu'en mode inline : `JOBS_MODE=trigg
 1. Importe le dépôt sur [vercel.com/new](https://vercel.com/new) (framework Next.js détecté, rien à régler).
 2. Dans **Settings → Environment Variables** (Production), ajoute :
 
-   | Variable                                            | Valeur                                                        |
-   | --------------------------------------------------- | ------------------------------------------------------------- |
-   | `APP_ENV`                                           | `prod`                                                        |
-   | `AI_MODE`                                           | `live`                                                        |
-   | `JOBS_MODE`                                         | `trigger`                                                     |
-   | `STORAGE_MODE`                                      | `r2`                                                          |
-   | `APP_URL`                                           | `https://<ton-domaine>`                                       |
-   | Supabase (3 variables) et `ALLOWED_EMAILS`          | étape 2                                                       |
-   | `GEMINI_API_KEY`                                    | la clé **prod** (le Studio voix appelle Gemini depuis Vercel) |
-   | R2 (4 variables)                                    | étape 3                                                       |
-   | `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF`         | étape 4                                                       |
-   | `MONTHLY_BUDGET_USD`, `MAX_*`, `DAILY_COURSE_LIMIT` | seulement si tu changes les défauts                           |
-   | `NEXT_PUBLIC_GOOGLE_*` (2 variables)                | étape 9, si tu veux l'import Google Drive                     |
+   | Variable                                                 | Valeur                                                        |
+   | -------------------------------------------------------- | ------------------------------------------------------------- |
+   | `APP_ENV`                                                | `prod`                                                        |
+   | `AI_MODE`                                                | `live`                                                        |
+   | `JOBS_MODE`                                              | `trigger`                                                     |
+   | `STORAGE_MODE`                                           | `r2`                                                          |
+   | `APP_URL`                                                | `https://<ton-domaine>`                                       |
+   | Supabase (3 variables), `ALLOWED_EMAILS`, `ADMIN_EMAILS` | étape 2                                                       |
+   | `GEMINI_API_KEY`                                         | la clé **prod** (le Studio voix appelle Gemini depuis Vercel) |
+   | R2 (4 variables)                                         | étape 3                                                       |
+   | `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF`              | étape 4                                                       |
+   | `MONTHLY_BUDGET_USD`, `MAX_*`, `DAILY_COURSE_LIMIT`      | seulement si tu changes les défauts                           |
+   | `NEXT_PUBLIC_GOOGLE_*` (2 variables)                     | étape 9, si tu veux l'import Google Drive                     |
 
    Pour pousser le contenu d'un fichier d'un coup : `vercel env add <NOM> production < valeur.txt`, ou colle le fichier `.env` dans l'éditeur du tableau de bord.
 

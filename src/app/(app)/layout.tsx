@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AppNav } from "@/components/app-nav";
-import { requireUser } from "@/lib/auth";
+import { getUser, requireUser } from "@/lib/auth";
 import Loading from "./loading";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -12,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Suspense>
       </div>
       <Suspense>
-        <AppNav />
+        <Nav />
       </Suspense>
     </>
   );
@@ -21,4 +21,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 async function Protected({ children }: { children: React.ReactNode }) {
   await requireUser();
   return <>{children}</>;
+}
+
+async function Nav() {
+  const user = await getUser();
+  return <AppNav admin={user?.isAdmin ?? false} />;
 }

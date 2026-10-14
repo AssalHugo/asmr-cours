@@ -37,6 +37,8 @@ export const ServerEnvSchema = z
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
     SUPABASE_SECRET_KEY: optionalString,
     ALLOWED_EMAILS: emailList,
+    /** Comptes qui voient `/admin` : tous les cours et toutes les dépenses. Doivent être dans l'allowlist. */
+    ADMIN_EMAILS: emailList,
 
     GEMINI_API_KEY: optionalString,
     GEMINI_MODEL_TEXT: z.string().default("gemini-3.8-flash"),

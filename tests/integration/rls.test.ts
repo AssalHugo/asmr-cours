@@ -138,6 +138,29 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
     expect((await users[1]!.client.from("course_costs").select("course_id")).data).toEqual([]);
   });
 
+  it("réserve les agrégats du mode admin à la clé secrète", async () => {
+    const a = users[0]!.client;
+    const since = new Date(0).toISOString();
+    expect((await a.rpc("admin_spend_by_month", {})).error).not.toBeNull();
+    expect((await a.rpc("admin_spend_by_user", { p_since: since })).error).not.toBeNull();
+    expect((await a.rpc("admin_spend_breakdown", {})).error).not.toBeNull();
+    expect((await a.rpc("admin_course_counts")).error).not.toBeNull();
+
+    const byUser = await admin.rpc("admin_spend_by_user", { p_since: since });
+    expect(byUser.data?.find((r) => r.user_id === users[0]!.id)).toMatchObject({
+      cost_usd: 1.25,
+      courses: 1,
+    });
+    const breakdown = await admin.rpc("admin_spend_breakdown", { p_course_id: courseOfA });
+    expect(breakdown.data).toEqual([
+      expect.objectContaining({ step: "rewrite", model: "mock", cost_usd: 1.25, events: 1 }),
+    ]);
+    const months = await admin.rpc("admin_spend_by_month", { p_months: 1 });
+    expect(Number(months.data?.at(-1)?.cost_usd)).toBeGreaterThanOrEqual(1.25);
+    const counts = await admin.rpc("admin_course_counts");
+    expect(counts.data?.some((r) => r.user_id === users[0]!.id)).toBe(true);
+  });
+
   it("borne le budget et refuse un second cours en préparation", async () => {
     const a = users[0]!;
     const tooMuch = await a.client

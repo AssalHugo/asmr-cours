@@ -504,6 +504,45 @@ export type Database = {
       };
     };
     Functions: {
+      admin_course_counts: {
+        Args: never;
+        Returns: {
+          courses: number;
+          duration_ms: number;
+          status: Database["public"]["Enums"]["course_status"];
+          user_id: string;
+        }[];
+      };
+      admin_spend_breakdown: {
+        Args: { p_course_id?: string; p_since?: string };
+        Returns: {
+          audio_seconds: number;
+          cost_usd: number;
+          events: number;
+          input_tokens: number;
+          model: string;
+          output_tokens: number;
+          step: string;
+          thinking_tokens: number;
+          tier: string;
+        }[];
+      };
+      admin_spend_by_month: {
+        Args: { p_months?: number };
+        Returns: {
+          cost_usd: number;
+          events: number;
+          month: string;
+        }[];
+      };
+      admin_spend_by_user: {
+        Args: { p_since: string };
+        Returns: {
+          cost_usd: number;
+          courses: number;
+          user_id: string;
+        }[];
+      };
       course_cost: {
         Args: { p_course_id: string };
         Returns: number;

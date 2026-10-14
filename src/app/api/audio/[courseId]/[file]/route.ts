@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { courseExists } from "@/lib/admin";
 import { getUser } from "@/lib/auth";
 import { isAmbienceId } from "@/lib/ambiences";
 import { keys, PRESIGN_GET_SECONDS, storage } from "@/lib/storage";
@@ -26,7 +27,10 @@ export async function GET(_request: Request, context: { params: Promise<unknown>
     .select("id")
     .eq("id", courseId)
     .maybeSingle();
-  if (!course) return new NextResponse(null, { status: 404 });
+  // Le mode admin écoute aussi les cours des autres comptes.
+  if (!course && !(user.isAdmin && (await courseExists(courseId)))) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   const mix = /^mix-([a-z0-9-]+)\.m4a$/.exec(file)?.[1];
   const key =
