@@ -13,7 +13,9 @@ import {
   listSections,
   listSharedWithMe,
   listShareRecipients,
+  listVoiceMessages,
 } from "@/lib/data";
+import { formatClock, formatDate } from "@/lib/format";
 import { findMarkedPassage } from "@/lib/pipeline/passage";
 import { VerifyReport } from "@/lib/pipeline/schemas";
 
@@ -26,12 +28,15 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const course = await getCourse(id.data);
   if (!course) notFound();
   const owned = course.user_id === user.id;
-  const [recipients, sharedBy, folders, placements] = await Promise.all([
+  const [recipients, sharedBy, folders, placements, messages] = await Promise.all([
     owned ? listShareRecipients(course.id, user.id) : [],
     owned ? null : listSharedWithMe(user.id).then((shared) => shared.get(course.id) ?? null),
     listFolders(),
     listCourseFolders(),
+    owned ? listVoiceMessages(course.id, user.id) : [],
   ]);
+  // Les messages pas encore entendus restent une surprise : ils passent dans le lecteur.
+  const heard = messages.filter((m) => m.played_at !== null);
 
   // Passages et marques ne servent qu'à refaire ou réexpliquer un passage : inutiles pour un
   // cours en préparation.
@@ -95,6 +100,22 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
         folders={folders}
         folderId={placements.get(course.id) ?? null}
       />
+      {heard.length > 0 ? (
+        <section className="mt-12 space-y-4">
+          <h2 className="text-2xl">Messages pour toi</h2>
+          <ul className="space-y-3">
+            {heard.map((m) => (
+              <li key={m.id} className="bg-card space-y-3 rounded-3xl p-5">
+                <p className="text-muted-foreground text-sm">
+                  {m.at_ms === null ? "Au lancement" : `À ${formatClock(m.at_ms)}`} · laissé le{" "}
+                  {formatDate(m.created_at)}
+                </p>
+                <audio controls preload="none" src={`/api/messages/${m.id}`} className="w-full" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </main>
   );
 }

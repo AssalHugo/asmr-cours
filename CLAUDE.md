@@ -35,6 +35,7 @@ Règles Next.js propres à cette version : @AGENTS.md
 - `courses` : le navigateur ne lit que les colonnes de `COURSE_COLUMNS` (`select("*")` avec la session est refusé) ; les colonnes internes se lisent avec la clé secrète, filtrées par `user_id`.
 - Dépenses : toujours agrégées en SQL (`spend_since`, `course_cost`, vues), jamais additionnées ligne à ligne (plafond de 1 000 lignes).
 - Mode admin (`/admin`, `ADMIN_EMAILS`) : `requireAdmin()` d'abord (404 sinon), puis lectures avec la clé secrète dans `src/lib/admin.ts`. Agrégats par fonctions SQL `admin_*`, exécutables par `service_role` seulement.
+- Messages vocaux (`voice_messages`) : enregistrés au micro depuis `/admin/courses/[id]` (MediaRecorder, MP4/AAC de préférence), déposés par URL présignée sous `courses/{id}/messages/`, servis par `/api/messages/[id]`. Joués une fois dans le lecteur (`useVoiceMessages`), cours en pause ; si la lecture automatique est refusée (iOS), une carte « Écouter » attend un toucher.
 - Inscriptions Supabase fermées : le compte d'une adresse invitée est créé par `sendMagicLink` avec la clé secrète.
 - FFmpeg : toujours `spawn` avec un tableau d'arguments.
 - Textes d'interface en français.
@@ -67,4 +68,4 @@ Règles Next.js propres à cette version : @AGENTS.md
 
 ## À valider avec de vraies clés
 
-Rien de ce qui suit n'a pu être exécuté : appels Gemini réels (dont le champ `language` de la synthèse et la balise `<whispers>` en Batch), TTS par Batch, déploiement Trigger.dev et Vercel, R2 (CORS compris), import Google Drive, Safari iOS. L'ordre des vérifications est dans `docs/SETUP.md`.
+Rien de ce qui suit n'a pu être exécuté : messages vocaux sur Safari iOS (lecture hors geste, écran verrouillé), appels Gemini réels (dont le champ `language` de la synthèse et la balise `<whispers>` en Batch), TTS par Batch, déploiement Trigger.dev et Vercel, R2 (CORS compris), import Google Drive, Safari iOS. L'ordre des vérifications est dans `docs/SETUP.md`.

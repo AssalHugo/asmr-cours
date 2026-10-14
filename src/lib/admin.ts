@@ -241,6 +241,15 @@ export type AdminCourseDetail = {
   breakdown: SpendBreakdownRow[];
   voiceLabel: string | null;
   ownerEmail: string | null;
+  messages: AdminVoiceMessage[];
+};
+
+export type AdminVoiceMessage = {
+  id: string;
+  durationMs: number;
+  atMs: number | null;
+  playedAt: string | null;
+  createdAt: string;
 };
 
 export async function getAdminCourse(courseId: string): Promise<AdminCourseDetail | null> {
@@ -252,7 +261,7 @@ export async function getAdminCourse(courseId: string): Promise<AdminCourseDetai
     .maybeSingle();
   if (error) fail("Cours", error);
   if (!course) return null;
-  const [sections, breakdown, costs, voice, owner] = await Promise.all([
+  const [sections, breakdown, costs, voice, owner, messages] = await Promise.all([
     admin.from("sections").select("*").eq("course_id", courseId).order("idx"),
     getSpendBreakdown({ courseId }),
     courseCosts([courseId]),
@@ -260,7 +269,13 @@ export async function getAdminCourse(courseId: string): Promise<AdminCourseDetai
       ? admin.from("voices").select("label").eq("id", course.voice_id).maybeSingle()
       : null,
     admin.auth.admin.getUserById(course.user_id),
+    admin
+      .from("voice_messages")
+      .select("id, duration_ms, at_ms, played_at, created_at")
+      .eq("course_id", courseId)
+      .order("created_at"),
   ]);
+  if (messages.error) fail("Messages vocaux", messages.error);
   if (sections.error) fail("Sections", sections.error);
   return {
     course: { ...course, realUsd: costs.get(courseId) ?? 0 },
@@ -268,6 +283,13 @@ export async function getAdminCourse(courseId: string): Promise<AdminCourseDetai
     breakdown,
     voiceLabel: voice?.data?.label ?? null,
     ownerEmail: owner.data.user?.email ?? null,
+    messages: messages.data.map((m) => ({
+      id: m.id,
+      durationMs: m.duration_ms,
+      atMs: m.at_ms,
+      playedAt: m.played_at,
+      createdAt: m.created_at,
+    })),
   };
 }
 

@@ -5,6 +5,7 @@ import {
   Gauge,
   Loader2,
   Lock,
+  Mail,
   MessageCircleQuestionMark,
   MoonStar,
   Pause,
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { readLocalPosition, usePlayer } from "@/hooks/use-player";
+import { useVoiceMessages } from "@/hooks/use-voice-messages";
 import { AMBIENCES, getAmbience } from "@/lib/ambiences";
 import { formatClock } from "@/lib/format";
 import type { PlayerSources } from "@/lib/player/engine";
@@ -45,6 +47,7 @@ import {
   SLEEP_MINUTES,
 } from "@/lib/player/timeline";
 import { cn } from "@/lib/utils";
+import type { PendingMessage } from "@/lib/voice-messages";
 
 export type PlayerProps = {
   userId: string;
@@ -54,9 +57,18 @@ export type PlayerProps = {
   serverPosition: { positionMs: number; updatedAt: number } | null;
   /** « Je n'ai pas compris ce passage » : seulement pour un cours à soi, seul réexplicable. */
   canMark: boolean;
+  /** Messages vocaux pas encore entendus. */
+  messages: PendingMessage[];
 };
 
-export function Player({ userId, course, chapters, serverPosition, canMark }: PlayerProps) {
+export function Player({
+  userId,
+  course,
+  chapters,
+  serverPosition,
+  canMark,
+  messages,
+}: PlayerProps) {
   const sources: PlayerSources = {
     courseId: course.id,
     title: course.title,
@@ -85,6 +97,8 @@ export function Player({ userId, course, chapters, serverPosition, canMark }: Pl
     );
     return () => cancelAnimationFrame(frame);
   }, [course.id, course.durationMs, serverPosition]);
+
+  const voiceMessage = useVoiceMessages(engine, snapshot, messages);
 
   const [showText, setShowText] = useState(false);
   const captions = useCaptions(course.id, showText);
@@ -172,10 +186,41 @@ export function Player({ userId, course, chapters, serverPosition, canMark }: Pl
           </div>
         ) : null}
 
+        {voiceMessage.state.kind !== "none" ? (
+          <div
+            role="status"
+            className="bg-card text-sand flex w-full max-w-sm items-center gap-3 rounded-2xl p-4 text-left"
+          >
+            <Mail
+              className={cn(
+                "size-6 shrink-0",
+                voiceMessage.state.kind === "playing" && "animate-pulse",
+              )}
+              aria-hidden
+            />
+            <p className="flex-1">
+              {voiceMessage.state.kind === "playing"
+                ? "Un message pour toi…"
+                : "Un message t'attend"}
+            </p>
+            {voiceMessage.state.kind === "waiting" ? (
+              <Button size="sm" onClick={voiceMessage.listen}>
+                Écouter
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={voiceMessage.skip}>
+                Passer
+              </Button>
+            )}
+          </div>
+        ) : null}
+
         <button
           type="button"
           onClick={() => {
             setResumeAt(null);
+            // Pendant un message, le gros bouton l'arrête et rend la main au cours.
+            if (voiceMessage.state.kind === "playing") return voiceMessage.skip();
             engine?.toggle();
           }}
           disabled={!ready}

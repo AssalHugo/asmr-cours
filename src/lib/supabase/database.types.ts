@@ -535,6 +535,54 @@ export type Database = {
           },
         ];
       };
+      voice_messages: {
+        Row: {
+          at_ms: number | null;
+          course_id: string;
+          created_at: string;
+          duration_ms: number;
+          id: string;
+          mime: string;
+          played_at: string | null;
+          recipient_id: string;
+          sender_id: string | null;
+          storage_key: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          at_ms?: number | null;
+          course_id: string;
+          created_at?: string;
+          duration_ms: number;
+          id?: string;
+          mime: string;
+          played_at?: string | null;
+          recipient_id: string;
+          sender_id?: string | null;
+          storage_key: string;
+        };
+        Update: {
+          at_ms?: number | null;
+          course_id?: string;
+          created_at?: string;
+          duration_ms?: number;
+          id?: string;
+          mime?: string;
+          played_at?: string | null;
+          recipient_id?: string;
+          sender_id?: string | null;
+          storage_key?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "voice_messages_course_id_fkey";
+            columns: ["course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       voices: {
         Row: {
           created_at: string;

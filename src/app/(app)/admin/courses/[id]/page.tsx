@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { MODE_LABEL, QUALITY_LABEL, SOURCE_LABEL, TIER_LABEL } from "@/components/admin/labels";
 import { SpendBreakdown } from "@/components/admin/spend-breakdown";
+import { VoiceMessageList } from "@/components/admin/voice-message-list";
+import { VoiceMessageRecorder } from "@/components/admin/voice-message-recorder";
 import { PageHeader } from "@/components/page-header";
 import { getAdminCourse } from "@/lib/admin";
 import { getAmbience } from "@/lib/ambiences";
@@ -21,7 +23,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   if (!id.success) notFound();
   const detail = await getAdminCourse(id.data);
   if (!detail) notFound();
-  const { course, sections, breakdown, voiceLabel, ownerEmail } = detail;
+  const { course, sections, breakdown, voiceLabel, ownerEmail, messages } = detail;
   const ambience = getAmbience(course.ambience);
   const estUsd = course.est_cost_usd === null ? null : Number(course.est_cost_usd);
 
@@ -91,6 +93,12 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
           ) : null}
         </section>
       ) : null}
+
+      <section className="space-y-4">
+        <h2 className="text-2xl">Messages vocaux</h2>
+        <VoiceMessageRecorder courseId={course.id} courseDurationMs={course.duration_ms} />
+        <VoiceMessageList messages={messages} />
+      </section>
 
       <section className="space-y-4">
         <div className="flex items-baseline justify-between gap-4">
