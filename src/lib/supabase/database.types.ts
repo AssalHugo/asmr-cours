@@ -271,6 +271,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      passage_marks: {
+        Row: {
+          caption: string;
+          course_id: string;
+          created_at: string;
+          id: string;
+          position_ms: number;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          caption: string;
+          course_id: string;
+          created_at?: string;
+          id?: string;
+          position_ms: number;
+          user_id: string;
+        };
+        Update: {
+          caption?: string;
+          course_id?: string;
+          created_at?: string;
+          id?: string;
+          position_ms?: number;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "passage_marks_course_id_fkey";
+            columns: ["course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       playback_progress: {
         Row: {
           course_id: string;

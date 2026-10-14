@@ -4,8 +4,11 @@ import { getAmbience } from "@/lib/ambiences";
 import { isAmbienceInstalled } from "@/lib/audio/ambience-synth";
 import { masterVoice, trimChunk } from "@/lib/audio/render";
 import { TTS_STYLE } from "@/lib/pipeline/chunker";
+import { locatePassage } from "@/lib/pipeline/passage";
+import { Script } from "@/lib/pipeline/schemas";
 import type {
   GenerateCoursePayload,
+  ReexplainChunkPayload,
   RedoChunkPayload,
   RegenerateSectionPayload,
   RemixPayload,
@@ -21,12 +24,13 @@ import {
   patchCourse,
   PipelineError,
   recordUsage,
+  setStatus,
   userMessage,
   type Ctx,
   type PipelineDeps,
 } from "./context";
 import { extractStep } from "./extract";
-import { rewriteSection, rewriteStep, verifyStep } from "./rewrite";
+import { reexplainPassage, rewriteSection, rewriteStep, verifyStep } from "./rewrite";
 import { synthStep } from "./synthesize";
 
 /** Refuse de démarrer avec une ambiance absente : le cours échouerait au mix, une fois payé. */
@@ -120,6 +124,42 @@ export async function redoChunk(deps: PipelineDeps, payload: RedoChunkPayload) {
       .delete(keys.ttsCache(takeHash(ctx.course, base, previous)))
       .catch(() => undefined);
   }
+  return { courseId: ctx.course.id };
+}
+
+/**
+ * « Réexplique-moi autrement » : réécrit un seul passage plus simplement, avec un exemple,
+ * puis le réenregistre. Grâce au cache par hash, seuls les passages modifiés sont payés :
+ * un appel texte et quelques secondes de voix.
+ */
+export async function reexplainChunk(deps: PipelineDeps, payload: ReexplainChunkPayload) {
+  const ctx = await loadCtx(deps, payload.courseId, payload.userId, { forceStandard: true });
+  const [chunks, sections] = await Promise.all([
+    deps.repo.listChunks(ctx.course.id),
+    deps.repo.listSections(ctx.course.id),
+  ]);
+  const chunk = chunks.find((c) => c.id === payload.chunkId);
+  const section = sections.find((s) => s.id === chunk?.section_id);
+  let range = null;
+  if (chunk && section?.script) {
+    // Rang du passage dans sa section : départage deux passages de même texte.
+    const ordinal = chunks.filter((c) => c.section_id === section.id && c.idx < chunk.idx).length;
+    range = locatePassage(Script.parse(section.script).segments, chunk.caption, ordinal);
+  }
+  // Aussi le cas d'un nouvel essai après l'écriture du script : « Reprendre » termine le
+  // cours avec le texte déjà réécrit, sans repayer la reformulation.
+  if (!section || !range) {
+    throw new PipelineError(
+      "Ce passage a changé entre-temps. « Reprendre » termine le cours avec son texte actuel.",
+    );
+  }
+
+  await setStatus(ctx, "rewriting");
+  await reexplainPassage(ctx, section, range);
+  await setStatus(ctx, "rewriting", 1);
+  await chunkStep(ctx);
+  await synthStep(ctx);
+  await assembleAndPublish(ctx);
   return { courseId: ctx.course.id };
 }
 

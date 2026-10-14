@@ -154,6 +154,23 @@ export async function listPassages(courseId: string): Promise<Passage[]> {
   }
 }
 
+export type PassageMark = Pick<
+  Tables["passage_marks"]["Row"],
+  "id" | "position_ms" | "caption" | "created_at"
+>;
+
+/** Passages marqués « Je n'ai pas compris » par l'utilisatrice, dans l'ordre de la piste. */
+export async function listPassageMarks(courseId: string, userId: string): Promise<PassageMark[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("passage_marks")
+    .select("id, position_ms, caption, created_at")
+    .eq("course_id", courseId)
+    .eq("user_id", userId)
+    .order("position_ms");
+  return data ?? [];
+}
+
 export async function listRenders(courseId: string): Promise<Render[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("renders").select("*").eq("course_id", courseId);

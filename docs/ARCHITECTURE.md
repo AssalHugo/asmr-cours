@@ -78,6 +78,7 @@ Les étapes reçoivent leurs dépendances (`PipelineDeps` : dépôt, stockage, I
 - Chaque chunk reçoit un fondu de 10 ms à ses deux bords, puis est ramené au niveau médian du cours (4 dB au plus) : chaque appel TTS a son propre niveau.
 - Une synthèse à la durée aberrante (passage tronqué ou parti en roue libre, hors de 5 à 28 caractères par seconde) est refaite une fois. La prise rejetée est facturée par Gemini, donc journalisée.
 - « Refaire un passage » réenregistre un seul chunk sans toucher au script : le numéro de prise entre dans le hash (`courses.chunk_takes`), si bien que le cache ne répond plus et que seul ce passage est payé.
+- « Réexplique-moi autrement » réécrit un seul passage (`reexplainChunk`) : le lecteur a noté sa légende de `captions.json` dans `passage_marks`, qui retrouve le chunk tant que le script n'a pas changé. Un appel texte reformule ses segments, plus simplement et avec un exemple ; ils remplacent l'original dans le script de la section, en gardant la pause qui suit pour que le découpage d'après ne bouge pas. Le cache par hash ne fait payer que les passages modifiés. Le rapport de fidélité de la section est gardé : un nouveau contrôle relancerait la réécriture de toute la section.
 - Les durées mesurées donnent la position de chaque chunk et de chaque section, d'où `captions.json`, `chapters.json` et les chapitres embarqués dans les fichiers audio.
 
 ### Budget

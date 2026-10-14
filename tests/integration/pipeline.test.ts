@@ -12,6 +12,7 @@ import {
   failCourse,
   generateCourse,
   redoChunk,
+  reexplainChunk,
   regenerateSection,
   remixCourse,
   voiceSample,
@@ -255,6 +256,45 @@ describe("pipeline complet en mode mock", () => {
     expect(h.calls.tts).toBe(ttsBefore);
     expect((await h.repo.listChunks(course.id))[1]?.hash).toBe(again[1]?.hash);
   });
+
+  it("réexplique un seul passage : un appel texte, seuls les passages modifiés sont payés", async () => {
+    const h = await createHarness();
+    const course = await h.addCourse();
+    await generateCourse(h.deps, payload(course.id));
+    const before = await h.repo.listChunks(course.id);
+    const target = before[1]!;
+    const sectionOf = (id: string) => h.repo.sections.find((s) => s.id === id);
+    const report = sectionOf(target.section_id)?.verify_report;
+    expect(report).toBeTruthy();
+    const calls = { ...h.calls };
+
+    await reexplainChunk(h.deps, { courseId: course.id, userId: USER, chunkId: target.id });
+
+    const after = await h.repo.listChunks(course.id);
+    expect(h.calls.reexplain - calls.reexplain).toBe(1);
+    expect(h.calls.rewrite).toBe(calls.rewrite);
+    expect(h.calls.verify).toBe(calls.verify);
+    // Le passage est réécrit, encadré de son exemple ; ses voisins gardent leur audio.
+    const rewritten = after.find((c) => c.caption.includes("Par exemple"));
+    expect(rewritten?.caption).toContain(target.caption);
+    expect(after.filter((c) => c.caption === target.caption)).toHaveLength(0);
+    const changed = after.filter((c) => !before.some((b) => b.hash === c.hash));
+    expect(changed.length).toBeGreaterThan(0);
+    expect(h.calls.tts - calls.tts).toBe(new Set(changed.map((c) => c.hash)).size);
+    expect(after.filter((c) => before.some((b) => b.hash === c.hash))).toHaveLength(
+      before.length - 1,
+    );
+    // Le rapport de fidélité du chapitre est gardé, la reformulation est journalisée.
+    expect(sectionOf(target.section_id)?.verify_report).toEqual(report);
+    expect(h.repo.usage.filter((u) => u.step === "reexplain")).toHaveLength(1);
+    expect(h.repo.courses.get(course.id)).toMatchObject({ status: "ready", error: null });
+
+    // Le même passage n'existe plus : un second essai échoue sans rien payer.
+    await expect(
+      reexplainChunk(h.deps, { courseId: course.id, userId: USER, chunkId: target.id }),
+    ).rejects.toThrow("Ce passage a changé");
+    expect(h.calls.reexplain - calls.reexplain).toBe(1);
+  }, 60_000);
 
   it("relance la réécriture deux fois au plus, puis continue avec une alerte", async () => {
     const report = { ok: false, missingFacts: ["Un fait"], alteredFacts: [], inventedClaims: [] };

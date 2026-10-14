@@ -55,8 +55,8 @@ const EMOJI = /\p{Extended_Pictographic}/u;
 export const scriptChars = (script: Script) =>
   script.segments.reduce((sum, s) => sum + s.text.length, 0);
 
-/** Contrôles côté code du script réécrit (§8.2). Liste vide = script accepté. */
-export function scriptProblems(script: Script, sourceChars: number): string[] {
+/** Caractères que le TTS lirait mot à mot. */
+export function charProblems(script: Script): string[] {
   const problems: string[] = [];
   script.segments.forEach((segment, index) => {
     if (FORBIDDEN_CHARS.test(segment.text)) {
@@ -64,6 +64,12 @@ export function scriptProblems(script: Script, sourceChars: number): string[] {
     }
     if (EMOJI.test(segment.text)) problems.push(`Segment ${index + 1} : emoji interdit.`);
   });
+  return problems;
+}
+
+/** Contrôles côté code du script réécrit (§8.2). Liste vide = script accepté. */
+export function scriptProblems(script: Script, sourceChars: number): string[] {
+  const problems = charProblems(script);
   const ratio = scriptChars(script) / Math.max(1, sourceChars);
   if (ratio < SCRIPT_MIN_RATIO || ratio > SCRIPT_MAX_RATIO) {
     problems.push(
@@ -105,6 +111,13 @@ export const RedoChunkPayload = z.object({
   chunkId: z.uuid(),
 });
 export type RedoChunkPayload = z.infer<typeof RedoChunkPayload>;
+
+export const ReexplainChunkPayload = z.object({
+  courseId: z.uuid(),
+  userId: z.uuid(),
+  chunkId: z.uuid(),
+});
+export type ReexplainChunkPayload = z.infer<typeof ReexplainChunkPayload>;
 
 export const RemixPayload = z.object({
   courseId: z.uuid(),
