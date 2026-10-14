@@ -38,6 +38,7 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
         startMs: s.start_ms ?? 0,
         durationMs: s.duration_ms ?? 0,
       }))}
+      canMark={course.user_id === user.id}
       serverPosition={
         progress
           ? { positionMs: progress.position_ms, updatedAt: Date.parse(progress.updated_at) }

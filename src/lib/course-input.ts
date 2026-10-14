@@ -80,3 +80,15 @@ export const fail = (
   message,
   reason,
 });
+
+/** « Je n'ai pas compris ce passage » : instant et légende en cours dans le lecteur. */
+export const MarkPassageInput = z.object({
+  courseId: z.uuid(),
+  positionMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 60 * 60 * 1000),
+  caption: z.string().trim().min(1).max(2000),
+});
+export type MarkPassageInput = z.infer<typeof MarkPassageInput>;

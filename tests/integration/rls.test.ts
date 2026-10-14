@@ -175,6 +175,19 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
     expect(spoofed.error).not.toBeNull();
   });
 
+  it("montre ses marques « pas compris » à leur autrice seule, sans écriture du navigateur", async () => {
+    const [a, b] = [users[0]!, users[1]!];
+    const mark = { user_id: a.id, course_id: courseOfA, position_ms: 1000, caption: "Passage." };
+    expect((await admin.from("passage_marks").insert(mark)).error).toBeNull();
+    expect((await a.client.from("passage_marks").select("caption")).data).toEqual([
+      { caption: "Passage." },
+    ]);
+    expect((await b.client.from("passage_marks").select("id")).data).toEqual([]);
+    expect((await a.client.from("passage_marks").insert(mark)).error).not.toBeNull();
+    await a.client.from("passage_marks").delete().eq("course_id", courseOfA);
+    expect((await a.client.from("passage_marks").select("id")).data).toHaveLength(1);
+  });
+
   it("ouvre un cours partagé à sa destinataire, en lecture seule", async () => {
     const [a, b] = [users[0]!, users[1]!];
     const forged = await b.client.from("course_shares").insert({

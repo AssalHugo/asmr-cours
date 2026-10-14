@@ -1,4 +1,10 @@
 import {
+  passageContext,
+  reexplainProblems,
+  splicePassage,
+  type PassageRange,
+} from "@/lib/pipeline/passage";
+import {
   Script,
   scriptProblems,
   reportIsClean,
@@ -142,5 +148,46 @@ export async function verifyStep(ctx: Ctx): Promise<void> {
       await repo.updateSection(row.id, { script });
     }
     await setStatus(ctx, "verifying", ++done / todo.length);
+  });
+}
+
+/**
+ * « Réexplique-moi autrement » : réécrit un seul passage d'une section, plus simplement et
+ * avec un exemple, et l'insère à la place de l'original. Le rapport de fidélité de la section
+ * est gardé : le contrôle complet relancerait la réécriture de toute la section.
+ */
+export async function reexplainPassage(
+  ctx: Ctx,
+  row: SectionRow,
+  range: PassageRange,
+): Promise<void> {
+  const segments = Script.parse(row.script).segments;
+  const around = passageContext(segments, range);
+  const once = async (problems?: string[]) => {
+    const result = await withRetry(
+      () =>
+        billed(ctx, "reexplain", () =>
+          ctx.deps.ai.llm.reexplain({
+            section: toSource(row),
+            ...around,
+            ctx: {
+              mode: ctx.course.mode,
+              addressForm: ctx.course.address_form === "vous" ? "vous" : "tu",
+            },
+            problems,
+          }),
+        ),
+      { shouldRetry: (e) => e instanceof Error && e.name === "LlmOutputError", baseMs: 200 },
+    );
+    await recordUsage(ctx, "reexplain", result.model, "standard", result.usage);
+    return result.data;
+  };
+
+  let script = await once();
+  const problems = reexplainProblems(around.passage, script);
+  // Contrôle de forme côté code : une seule relance, comme pour une section.
+  if (problems.length > 0) script = await once(problems);
+  await ctx.deps.repo.updateSection(row.id, {
+    script: { segments: splicePassage(segments, range, sanitizeScript(script).segments) },
   });
 }

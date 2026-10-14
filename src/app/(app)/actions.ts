@@ -12,6 +12,7 @@ import { checkBudget } from "@/lib/budget";
 import {
   CreateCourseInput,
   fail,
+  MarkPassageInput,
   RemixInput,
   ShareInput,
   SourceInput,
@@ -21,6 +22,7 @@ import { billingModels, getGlobalMonthlySpend, getMonthlySpend, getProfile } fro
 import { env } from "@/lib/env";
 import { comboKey, estimateCourse } from "@/lib/estimate";
 import { startJob } from "@/lib/jobs";
+import { findMarkedPassage } from "@/lib/pipeline/passage";
 import { isActive, type CourseStatus } from "@/lib/pipeline/status";
 import { mapLimit } from "@/lib/retry";
 import { inspectSource, type SourceInfo } from "@/lib/source";
@@ -425,6 +427,101 @@ export async function redoChunk(
     { kind: "redo-chunk", payload: { courseId, userId: user.id, chunkId } },
     "ready",
   );
+}
+
+/** Marques gardées par cours : au-delà, mieux vaut régénérer le chapitre. */
+const MAX_PASSAGE_MARKS = 50;
+
+/** Lecteur : « Je n'ai pas compris ce passage ». Note l'endroit, sans aucun coût. */
+export async function markPassage(raw: unknown): Promise<ActionResult<{ already: boolean }>> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  const parsed = MarkPassageInput.safeParse(raw);
+  if (!parsed.success) return fail("Ce passage est introuvable.");
+  const { courseId, positionMs, caption } = parsed.data;
+  const course = await ownCourse(user, courseId);
+  if (!course) return fail("Seul le cours qui t'appartient peut être réexpliqué.");
+
+  const admin = createAdminClient();
+  const { data: marks, error } = await admin
+    .from("passage_marks")
+    .select("caption")
+    .eq("course_id", courseId)
+    .eq("user_id", user.id);
+  if (error) return fail(CHECK_FAILED);
+  if (marks.some((m) => m.caption === caption)) return { ok: true, data: { already: true } };
+  if (marks.length >= MAX_PASSAGE_MARKS) {
+    return fail(`Tu as déjà noté ${MAX_PASSAGE_MARKS} passages dans ce cours.`);
+  }
+  const { error: insertError } = await admin
+    .from("passage_marks")
+    .insert({ user_id: user.id, course_id: courseId, position_ms: positionMs, caption });
+  if (insertError) return fail("Le passage n'a pas pu être noté. Réessaie.");
+  revalidatePath(`/courses/${courseId}`);
+  return { ok: true, data: { already: false } };
+}
+
+/** Retire une marque « Je n'ai pas compris ». */
+export async function removePassageMark(courseId: string, markId: string): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  if (!z.uuid().safeParse(markId).success) return fail("Ce passage n'est plus noté.");
+  const { error } = await createAdminClient()
+    .from("passage_marks")
+    .delete()
+    .eq("id", markId)
+    .eq("user_id", user.id);
+  if (error) return fail("Le retrait a échoué. Réessaie.");
+  revalidatePath(`/courses/${courseId}`);
+  return { ok: true };
+}
+
+/**
+ * « Réexplique-moi autrement » : réécrit le passage marqué plus simplement, avec un exemple.
+ * Un appel texte et la voix de ce seul passage : quelques centimes.
+ */
+export async function reexplainPassage(
+  courseId: string,
+  markId: string,
+): Promise<ActionResult<{ courseId: string }>> {
+  const user = await getUser();
+  if (!user) return SIGNED_OUT;
+  if (!z.uuid().safeParse(markId).success) return fail("Ce passage n'est plus noté.");
+  const course = await ownCourse(user, courseId);
+  if (!course) return fail("Ce cours n'existe plus.");
+  if (course.status !== "ready") return fail("Attends que le cours soit prêt.");
+
+  const admin = createAdminClient();
+  const { data: mark } = await admin
+    .from("passage_marks")
+    .select("id, caption, position_ms")
+    .eq("id", markId)
+    .eq("course_id", courseId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!mark) return fail("Ce passage n'est plus noté.");
+  const { data: passages, error } = await admin
+    .from("chunks")
+    .select("id, caption, start_ms")
+    .eq("course_id", courseId)
+    .eq("caption", mark.caption);
+  if (error) return fail(CHECK_FAILED);
+  const passage = findMarkedPassage(passages, mark);
+  if (!passage) return fail("Ce passage a changé depuis. Retire-le de la liste.");
+  const refusal = await budgetRefusal(user);
+  if (refusal) return refusal;
+
+  const refused = await transition(user, courseId, "ready", { status: "rewriting", progress: 12 });
+  if (refused) return refused;
+  const launched = await launch(
+    user,
+    courseId,
+    { kind: "reexplain-chunk", payload: { courseId, userId: user.id, chunkId: passage.id } },
+    "ready",
+  );
+  // La marque a servi : le passage réécrit n'a plus la même légende.
+  if (launched.ok) await admin.from("passage_marks").delete().eq("id", mark.id);
+  return launched;
 }
 
 /** Change l'ambiance du pré-mix : FFmpeg seul, aucun coût IA. */
