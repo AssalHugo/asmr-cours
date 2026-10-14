@@ -160,6 +160,43 @@ export type Database = {
           },
         ];
       };
+      course_folders: {
+        Row: {
+          course_id: string;
+          created_at: string;
+          folder_id: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          course_id: string;
+          created_at?: string;
+          folder_id: string;
+          user_id: string;
+        };
+        Update: {
+          course_id?: string;
+          created_at?: string;
+          folder_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "course_folders_course_id_fkey";
+            columns: ["course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "course_folders_folder_id_user_id_fkey";
+            columns: ["folder_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "folders";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
       course_launches: {
         Row: {
           created_at: string;
@@ -211,6 +248,28 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      folders: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          user_id?: string;
+        };
+        Relationships: [];
       };
       passage_marks: {
         Row: {

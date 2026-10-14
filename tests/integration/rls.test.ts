@@ -238,6 +238,55 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
     expect((await b.client.from("sections").select("id")).data).toEqual([]);
   });
 
+  it("garde les dossiers et le rangement propres à chaque compte, en lecture seule", async () => {
+    const [a, b] = [users[0]!, users[1]!];
+    const forged = await a.client.from("folders").insert({ user_id: a.id, name: "Forgé" });
+    expect(forged.error).not.toBeNull();
+
+    const folder = await admin
+      .from("folders")
+      .insert({ user_id: a.id, name: "Biologie" })
+      .select("id")
+      .single();
+    if (folder.error) throw folder.error;
+    const twin = await admin.from("folders").insert({ user_id: a.id, name: "biologie" });
+    expect(twin.error?.code).toBe("23505");
+    // Le même nom reste libre pour un autre compte.
+    const ofB = await admin
+      .from("folders")
+      .insert({ user_id: b.id, name: "Biologie" })
+      .select("id")
+      .single();
+    if (ofB.error) throw ofB.error;
+
+    const placed = await admin
+      .from("course_folders")
+      .insert({ user_id: a.id, course_id: courseOfA, folder_id: folder.data.id });
+    expect(placed.error).toBeNull();
+    // Ranger dans le dossier d'un autre compte : refusé par la clé composite.
+    const crossed = await admin
+      .from("course_folders")
+      .insert({ user_id: b.id, course_id: courseOfA, folder_id: folder.data.id });
+    expect(crossed.error).not.toBeNull();
+
+    expect((await a.client.from("folders").select("name")).data).toEqual([{ name: "Biologie" }]);
+    expect((await a.client.from("course_folders").select("course_id, folder_id")).data).toEqual([
+      { course_id: courseOfA, folder_id: folder.data.id },
+    ]);
+    expect((await b.client.from("folders").select("id")).data).toEqual([{ id: ofB.data.id }]);
+    expect((await b.client.from("course_folders").select("course_id")).data).toEqual([]);
+
+    await a.client.from("folders").update({ name: "Piraté" }).eq("id", folder.data.id);
+    await a.client.from("course_folders").delete().eq("course_id", courseOfA);
+    expect((await a.client.from("folders").select("name")).data).toEqual([{ name: "Biologie" }]);
+    expect((await a.client.from("course_folders").select("course_id")).data).toHaveLength(1);
+
+    // Supprimer le dossier sort le cours du dossier, sans toucher au cours.
+    await admin.from("folders").delete().eq("id", folder.data.id);
+    expect((await a.client.from("course_folders").select("course_id")).data).toEqual([]);
+    expect((await a.client.from("courses").select("id")).data).toEqual([{ id: courseOfA }]);
+  });
+
   it("ne laisse rien lire sans session", async () => {
     const anon: Client = createClient<Database>(url ?? "", publishableKey ?? "", {
       auth: { persistSession: false, autoRefreshToken: false },

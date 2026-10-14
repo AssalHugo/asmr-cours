@@ -30,6 +30,7 @@ import {
 } from "@/app/(app)/actions";
 import { BreathOrb } from "@/components/breath-orb";
 import { Choice } from "@/components/choice";
+import { MoveToFolder, type FolderOption } from "@/components/folder/folder-dialogs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -102,9 +103,20 @@ export type CourseViewProps = {
   owned: boolean;
   /** Adresses avec qui la propriétaire partage ce cours. */
   recipients: string[];
+  folders: FolderOption[];
+  /** Dossier où ce compte a rangé le cours, `null` s'il n'est rangé nulle part. */
+  folderId: string | null;
 };
 
-export function CourseView({ course, sections, marks, owned, recipients }: CourseViewProps) {
+export function CourseView({
+  course,
+  sections,
+  marks,
+  owned,
+  recipients,
+  folders,
+  folderId,
+}: CourseViewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [redo, setRedo] = useState<SectionView["passages"][number] | null>(null);
@@ -244,6 +256,12 @@ export function CourseView({ course, sections, marks, owned, recipients }: Cours
           </div>
           <div className="flex flex-wrap gap-2">
             <OfflineToggle courseId={course.id} ambience={course.ambience} title={course.title} />
+            <MoveToFolder
+              courseId={course.id}
+              courseTitle={course.title}
+              folders={folders}
+              folderId={folderId}
+            />
             {owned ? (
               <>
                 <RemixDialog

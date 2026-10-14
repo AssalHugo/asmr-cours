@@ -162,6 +162,7 @@ Prix en USD par million de tokens. Bascule automatique selon la date de l'appel.
 ### 4.4 Bibliothèque
 - Cartes : titre, durée, date, statut, progression d'écoute, badge hors-ligne, alerte de fidélité éventuelle.
 - Recherche par titre.
+- Dossiers (ajout à la spec) : un niveau, un cours dans un dossier au plus. Le rangement est propre à chaque compte, cours reçus en partage compris. Supprimer un dossier ne supprime aucun cours.
 - Suppression : rendus et sources du cours ; le cache TTS global est conservé.
 
 ### 4.5 Détail d'un cours
