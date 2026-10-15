@@ -1,6 +1,7 @@
 import type { BillingTier, BillableUsage } from "@/lib/pricing";
 import type { Database, Json } from "@/lib/supabase/database.types";
-import type { Script, VerifyReport } from "./schemas";
+import type { ChunkKind } from "./chunker";
+import type { Quiz, Script, VerifyReport } from "./schemas";
 
 type Tables = Database["public"]["Tables"];
 export type CourseRow = Tables["courses"]["Row"];
@@ -46,6 +47,7 @@ export type SectionPatch = {
   script?: Script | null;
   verified?: boolean;
   verify_report?: StoredReport | null;
+  quiz?: Quiz | null;
   start_ms?: number | null;
   duration_ms?: number | null;
 };
@@ -53,6 +55,7 @@ export type SectionPatch = {
 export type NewChunk = {
   section_id: string;
   idx: number;
+  kind: ChunkKind;
   text: string;
   caption: string;
   style: string;

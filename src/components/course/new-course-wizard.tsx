@@ -75,6 +75,7 @@ export function NewCourseWizard(props: WizardProps) {
   const [ambience, setAmbience] = useState(getAmbience(props.defaults.ambience)?.id ?? "rain");
   const [gainDb, setGainDb] = useState(getAmbience(ambience)?.defaultGainDb ?? -6);
   const [addressForm, setAddressForm] = useState(props.defaults.addressForm);
+  const [quiz, setQuiz] = useState(true);
   const [tier, setTier] = useState<TtsTier>(props.defaults.tier);
   const [quality, setQuality] = useState<TtsQuality>(props.defaults.quality);
   const [confirmed, setConfirmed] = useState(false);
@@ -88,12 +89,13 @@ export function NewCourseWizard(props: WizardProps) {
       sourceKind: prepared.kind,
       pages: prepared.pages,
       mode,
+      quiz,
       measured: props.measured.filter((m) => m.voiceId === voiceId && m.mode === mode),
       models: props.models,
       at: new Date(),
       mock: props.mock,
     });
-  }, [prepared, mode, voiceId, props.measured, props.models, props.mock]);
+  }, [prepared, mode, quiz, voiceId, props.measured, props.models, props.mock]);
 
   const { spentUsd, budgetUsd } = props.budget;
   const combo = estimate?.combos[comboKey(tier, quality)];
@@ -123,6 +125,7 @@ export function NewCourseWizard(props: WizardProps) {
       ambience,
       ambienceGainDb: gainDb,
       addressForm,
+      quiz,
       tier,
       quality,
       confirmed,
@@ -268,6 +271,17 @@ export function NewCourseWizard(props: WizardProps) {
             options={[
               { value: "tu", label: "Tu" },
               { value: "vous", label: "Vous" },
+            ]}
+          />
+
+          <Choice
+            legend="Quiz en fin de chapitre"
+            name="quiz"
+            value={quiz ? "on" : "off"}
+            onChange={(value) => setQuiz(value === "on")}
+            options={[
+              { value: "on", label: "Pour réviser", hint: "2 ou 3 questions, le temps d'y penser" },
+              { value: "off", label: "Pour s'endormir", hint: "Sans questions" },
             ]}
           />
 

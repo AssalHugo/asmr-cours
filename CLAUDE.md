@@ -36,6 +36,7 @@ Règles Next.js propres à cette version : @AGENTS.md
 - Dépenses : toujours agrégées en SQL (`spend_since`, `course_cost`, vues), jamais additionnées ligne à ligne (plafond de 1 000 lignes).
 - Mode admin (`/admin`, `ADMIN_EMAILS`) : `requireAdmin()` d'abord (404 sinon), puis lectures avec la clé secrète dans `src/lib/admin.ts`. Agrégats par fonctions SQL `admin_*`, exécutables par `service_role` seulement.
 - Messages vocaux (`voice_messages`) : enregistrés au micro depuis `/admin/courses/[id]` (MediaRecorder, MP4/AAC de préférence), déposés par URL présignée sous `courses/{id}/messages/`, servis par `/api/messages/[id]`. Joués une fois dans le lecteur (`useVoiceMessages`), cours en pause ; si la lecture automatique est refusée (iOS), une carte « Écouter » attend un toucher.
+- Quiz de fin de chapitre (`courses.quiz`, `sections.quiz`, chunks `kind = 'quiz'`) : étape `quizStep` après la réécriture, chunks par `quizChunks`. Désactivé au lancement par « Pour s'endormir ».
 - Inscriptions Supabase fermées : le compte d'une adresse invitée est créé par `sendMagicLink` avec la clé secrète.
 - FFmpeg : toujours `spawn` avec un tableau d'arguments.
 - Textes d'interface en français.

@@ -30,6 +30,7 @@ import {
   type PipelineDeps,
 } from "./context";
 import { extractStep } from "./extract";
+import { quizStep, sectionQuiz } from "./quiz";
 import { reexplainPassage, rewriteSection, rewriteStep, verifyStep } from "./rewrite";
 import { synthStep } from "./synthesize";
 
@@ -53,7 +54,12 @@ async function budgetGate(ctx: Ctx): Promise<void> {
     repo.listSections(ctx.course.id),
     repo.listChunks(ctx.course.id),
   ]);
-  const textDone = sections.every((s) => s.script !== null && s.verify_report !== null);
+  const textDone = sections.every(
+    (s) =>
+      s.script !== null &&
+      s.verify_report !== null &&
+      (!ctx.course.quiz || sectionQuiz(s) !== null),
+  );
   const audioDone = chunks.length > 0 && chunks.every((c) => c.status === "done");
   if (textDone && audioDone) return;
   await assertBudget(ctx, Math.max(0, (ctx.course.est_cost_usd ?? 0) - ctx.costUsd));
@@ -70,6 +76,7 @@ export async function generateCourse(deps: PipelineDeps, payload: GenerateCourse
   await extractStep(ctx, { titleIsDefault: payload.titleIsDefault });
   await budgetGate(ctx);
   await rewriteStep(ctx);
+  await quizStep(ctx);
   await verifyStep(ctx);
   await chunkStep(ctx);
   await synthStep(ctx);
@@ -86,6 +93,7 @@ export async function regenerateSection(deps: PipelineDeps, payload: RegenerateS
   // L'ancien script reste en place jusqu'à ce que le nouveau soit écrit.
   await rewriteSection(ctx, section, sections.length);
   await rewriteStep(ctx);
+  await quizStep(ctx);
   await verifyStep(ctx);
   await chunkStep(ctx);
   // Grâce au cache par hash, seuls les chunks modifiés sont payés.
@@ -139,11 +147,18 @@ export async function reexplainChunk(deps: PipelineDeps, payload: ReexplainChunk
     deps.repo.listSections(ctx.course.id),
   ]);
   const chunk = chunks.find((c) => c.id === payload.chunkId);
+  if (chunk?.kind === "quiz") {
+    throw new PipelineError(
+      "Les questions du quiz ne se réexpliquent pas. « Refaire » réenregistre ce passage.",
+    );
+  }
   const section = sections.find((s) => s.id === chunk?.section_id);
   let range = null;
   if (chunk && section?.script) {
     // Rang du passage dans sa section : départage deux passages de même texte.
-    const ordinal = chunks.filter((c) => c.section_id === section.id && c.idx < chunk.idx).length;
+    const ordinal = chunks.filter(
+      (c) => c.section_id === section.id && c.kind === "speech" && c.idx < chunk.idx,
+    ).length;
     range = locatePassage(Script.parse(section.script).segments, chunk.caption, ordinal);
   }
   // Aussi le cas d'un nouvel essai après l'écriture du script : « Reprendre » termine le

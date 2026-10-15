@@ -25,6 +25,18 @@ describe("estimate", () => {
     expect(est.rateIsMeasured).toBe(false);
   });
 
+  it("allonge la piste du quiz de chaque chapitre sans facturer ses silences", () => {
+    const plain = estimateCourse(base);
+    const quiz = estimateCourse({ ...base, quiz: true });
+    // 13 sections : environ 80 s de quiz chacune, dont 30 s de silence de réflexion.
+    expect((quiz.durationSec - plain.durationSec) / 60).toBeCloseTo(17.3, 1);
+    expect(quiz.textUsd).toBeGreaterThan(plain.textUsd);
+    const extraTts =
+      quiz.combos["express-standard"].ttsUsd / plain.combos["express-standard"].ttsUsd;
+    expect(extraTts).toBeGreaterThan(1);
+    expect(extraTts).toBeLessThan(1.2);
+  });
+
   it("chiffre les 4 combinaisons, de la moins chère à la plus chère", () => {
     const { combos, textUsd } = estimateCourse(base);
     const tts = (k: keyof typeof combos) => combos[k].ttsUsd;

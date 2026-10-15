@@ -2,8 +2,9 @@ import "server-only";
 import { env } from "@/lib/env";
 import { mediaContents } from "@/lib/gemini/files";
 import { generateJson } from "@/lib/gemini/text";
-import { ExtractedCourse, Script, VerifyReport } from "@/lib/pipeline/schemas";
+import { ExtractedCourse, Quiz, Script, VerifyReport } from "@/lib/pipeline/schemas";
 import { EXTRACT_SYSTEM, renderExtractUser } from "@/lib/prompts/extract";
+import { renderQuizSystem, renderQuizUser } from "@/lib/prompts/quiz";
 import { renderReexplainSystem, renderReexplainUser } from "@/lib/prompts/reexplain";
 import { renderRewriteSystem, renderRewriteUser } from "@/lib/prompts/rewrite";
 import { renderVerifyUser, VERIFY_SYSTEM } from "@/lib/prompts/verify";
@@ -46,6 +47,16 @@ export function createGeminiLlm(): LlmProvider {
         system: renderReexplainSystem(ctx),
         input: renderReexplainUser(request),
         schema: Script,
+      });
+      return { data, usage, model: textModel };
+    },
+
+    async quiz({ ctx, ...request }) {
+      const { data, usage } = await generateJson({
+        model: textModel,
+        system: renderQuizSystem(ctx),
+        input: renderQuizUser(request),
+        schema: Quiz,
       });
       return { data, usage, model: textModel };
     },

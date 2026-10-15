@@ -2,10 +2,12 @@ import type { SourceFile } from "@/lib/gemini/files";
 import type {
   ExtractedCourse,
   ExtractedSection,
+  Quiz,
   Script,
   VerifyReport,
 } from "@/lib/pipeline/schemas";
 import type { BillableUsage } from "@/lib/pricing";
+import type { QuizContext, QuizRequest } from "@/lib/prompts/quiz";
 import type { ReexplainContext, ReexplainRequest } from "@/lib/prompts/reexplain";
 import type { RewriteContext, RewriteFeedback } from "@/lib/prompts/rewrite";
 
@@ -22,6 +24,8 @@ export type RewriteInput = {
 
 export type ReexplainInput = ReexplainRequest & { ctx: ReexplainContext };
 
+export type QuizInput = QuizRequest & { ctx: QuizContext };
+
 export type LlmResult<T> = { data: T; model: string; usage: BillableUsage };
 
 /** Étapes texte du pipeline. Toute sortie est déjà validée par son schéma zod. */
@@ -32,4 +36,6 @@ export interface LlmProvider {
   verify(section: ExtractedSection, script: Script): Promise<LlmResult<VerifyReport>>;
   /** Réécrit un seul passage, plus simplement et avec un exemple (« Réexplique-moi autrement »). */
   reexplain(input: ReexplainInput): Promise<LlmResult<Script>>;
+  /** Questions et réponses du quiz de fin de chapitre, d'après la source de la section. */
+  quiz(input: QuizInput): Promise<LlmResult<Quiz>>;
 }

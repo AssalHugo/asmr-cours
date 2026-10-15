@@ -38,6 +38,8 @@ export const CreateCourseInput = z.object({
   ambience,
   ambienceGainDb: gainDb,
   addressForm: z.enum(["tu", "vous"]),
+  /** Quiz audio en fin de chapitre ; à couper pour s'endormir. */
+  quiz: z.boolean(),
   tier: z.enum(["eco", "express"]),
   quality: z.enum(["standard", "economy"]),
   /** Confirmation explicite du dépassement des 80 % du budget. */

@@ -46,8 +46,10 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
     listSections(course.id),
     ready ? listPassageMarks(course.id, user.id) : [],
   ]);
+  // Le quiz ne se réexplique pas : une marque n'y renvoie qu'au texte du cours.
+  const speech = passages.filter((p) => p.kind === "speech");
   const markViews: MarkView[] = marks.map((mark) => {
-    const passage = findMarkedPassage(passages, mark);
+    const passage = findMarkedPassage(speech, mark);
     return {
       id: mark.id,
       caption: mark.caption,

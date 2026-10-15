@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 
 const COURSE_COLUMNS =
-  "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
+  "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, quiz, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
 
 /** Taille d'une page de la liste des cours (les identifiants passent dans l'URL de `course_costs`). */
 export const ADMIN_PAGE_SIZE = 50;
