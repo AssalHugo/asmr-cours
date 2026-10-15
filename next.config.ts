@@ -35,6 +35,7 @@ function contentSecurityPolicy(): string {
     dev ? "ws:" : null,
     ...(drive
       ? [
+          "https://apis.google.com",
           "https://www.googleapis.com",
           "https://*.googleusercontent.com",
           "https://accounts.google.com",
