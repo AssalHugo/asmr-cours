@@ -128,6 +128,13 @@ L'envoi d'emails intégré à Supabase est limité à quelques messages par heur
 
    Ce déploiement n'a pas pu être essayé sans compte : c'est la première fois que les tâches seront compilées par Trigger.dev. En cas d'échec au build, la sortie de la commande indique le module en cause.
 
+4. Déploiement automatique : le workflow `.github/workflows/trigger-deploy.yml` redéploie les tâches après chaque CI verte sur `main`, pour que Trigger.dev ne prenne pas de retard sur Vercel (sinon une tâche nouvelle reste en `PENDING_VERSION`, le cours bloqué). Dans **Settings → Secrets and variables → Actions** du dépôt GitHub, ajoute :
+
+   | Secret                 | Valeur                                                                               |
+   | ---------------------- | ------------------------------------------------------------------------------------ |
+   | `TRIGGER_ACCESS_TOKEN` | un jeton personnel `tr_pat_…` (**Account → Personal Access Tokens** sur Trigger.dev) |
+   | `TRIGGER_PROJECT_REF`  | la référence `proj_…` de l'étape 1                                                   |
+
 Pour développer contre Trigger.dev plutôt qu'en mode inline : `JOBS_MODE=trigger` dans `.env.local`, la clé `tr_dev_…`, puis `pnpm trigger:dev` à côté de `pnpm dev`.
 
 ## 5. Vercel

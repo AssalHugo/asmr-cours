@@ -1,0 +1,41 @@
+name: Trigger.dev
+
+# Déploie les tâches de `src/trigger/` en production quand un commit de `main` a passé la CI,
+# pour que Vercel et Trigger.dev servent toujours la même version. Sans ça, une tâche
+# ajoutée côté app reste en PENDING_VERSION. Lancement manuel possible depuis l'onglet Actions.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Jamais deux déploiements en même temps, et jamais d'annulation en cours de route.
+concurrency:
+  group: trigger-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Seulement après une CI verte sur un push (pas une PR dont la branche s'appelle main).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+      TRIGGER_PROJECT_REF: ${{ secrets.TRIGGER_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Le commit qui a passé la CI, pas la pointe de main au moment du déclenchement.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Déployer les tâches
+        run: pnpm exec trigger deploy --env prod --skip-update-check
