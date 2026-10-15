@@ -22,6 +22,7 @@ export type Calls = {
   rewrite: number;
   verify: number;
   reexplain: number;
+  quiz: number;
   tts: number;
   waits: number;
 };
@@ -58,6 +59,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     rewrite: 0,
     verify: 0,
     reexplain: 0,
+    quiz: 0,
     tts: 0,
     waits: 0,
   };
@@ -70,6 +72,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     rewrite: (input) => (calls.rewrite++, baseLlm.rewrite(input)),
     verify: (section, script) => (calls.verify++, baseLlm.verify(section, script)),
     reexplain: (input) => (calls.reexplain++, baseLlm.reexplain(input)),
+    quiz: (input) => (calls.quiz++, baseLlm.quiz(input)),
   };
   const baseTts = { ...createMockTts(), ...options.tts };
   const tts: TtsProvider = {

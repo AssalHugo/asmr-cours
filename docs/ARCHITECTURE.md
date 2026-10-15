@@ -31,7 +31,8 @@ flowchart TD
   E --> BU{budget suffisant ?}
   BU -- non --> F([failed])
   BU -- oui --> RW[rewriting<br/>script ASMR par section, 3 en parallèle]
-  RW --> V[verifying<br/>contrôle de fidélité]
+  RW --> QZ[quiz de fin de chapitre<br/>si choisi au lancement]
+  QZ --> V[verifying<br/>contrôle de fidélité]
   V -- "écarts, ≤ 2 relances" --> RW
   V --> C[découpage en chunks<br/>hash = sha256 modèle·voix·style·texte·prise]
   C --> K{chunk dans le cache ?}
@@ -53,6 +54,7 @@ flowchart TD
 | ------------ | ------------------------------------------------------------------------ |
 | Extraction   | le cours a des sections                                                  |
 | Réécriture   | la section a un `script`                                                 |
+| Quiz         | la section a un `quiz` (ou le cours est sans quiz)                       |
 | Vérification | la section a un `verify_report`                                          |
 | Synthèse     | le chunk est `done`, ou `tts-cache/{hash}.wav` existe                    |
 | Batch        | `courses.batch_job_id` est renseigné : on reprend le sondage du même job |
@@ -79,6 +81,7 @@ Les étapes reçoivent leurs dépendances (`PipelineDeps` : dépôt, stockage, I
 - Une synthèse à la durée aberrante (passage tronqué ou parti en roue libre, hors de 5 à 28 caractères par seconde) est refaite une fois. La prise rejetée est facturée par Gemini, donc journalisée.
 - « Refaire un passage » réenregistre un seul chunk sans toucher au script : le numéro de prise entre dans le hash (`courses.chunk_takes`), si bien que le cache ne répond plus et que seul ce passage est payé.
 - « Réexplique-moi autrement » réécrit un seul passage (`reexplainChunk`) : le lecteur a noté sa légende de `captions.json` dans `passage_marks`, qui retrouve le chunk tant que le script n'a pas changé. Un appel texte reformule ses segments, plus simplement et avec un exemple ; ils remplacent l'original dans le script de la section, en gardant la pause qui suit pour que le découpage d'après ne bouge pas. Le cache par hash ne fait payer que les passages modifiés. Le rapport de fidélité de la section est gardé : un nouveau contrôle relancerait la réécriture de toute la section.
+- Quiz de fin de chapitre (`courses.quiz`, choisi au lancement : « Pour réviser » ou « Pour s'endormir ») : après la réécriture, un appel texte par section écrit 2 ou 3 questions et leurs réponses d'après la source (`sections.quiz`). Le découpage ajoute en fin de section des chunks `kind = 'quiz'` : une transition, chaque question suivie d'un silence exact de 6 s pour répondre dans sa tête, puis la réponse. Transitions et silences sont écrits par le code : la transition sort du cache d'un chapitre à l'autre. Au dernier chapitre, la réécriture omet sa clôture, remplacée par une phrase de fin après le quiz. Le quiz ne dépend pas du script : régénérer une section ou réexpliquer un passage le gardent, et un passage du quiz se refait mais ne se réexplique pas.
 - Les durées mesurées donnent la position de chaque chunk et de chaque section, d'où `captions.json`, `chapters.json` et les chapitres embarqués dans les fichiers audio.
 
 ### Budget

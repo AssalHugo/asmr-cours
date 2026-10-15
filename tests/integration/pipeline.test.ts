@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { probe } from "@/lib/audio/ffmpeg";
+import { QUIZ_LINES, QUIZ_PAUSES } from "@/lib/pipeline/chunker";
 import { Caption, Chapter } from "@/lib/pipeline/schemas";
 import { STATUS_ORDER } from "@/lib/pipeline/status";
 import { keys } from "@/lib/storage/keys";
@@ -114,6 +115,50 @@ describe("pipeline complet en mode mock", () => {
     expect(h.calls.tts).toBe(new Set(chunks.map((c) => c.hash)).size);
     // Le cours le plus long de la suite : trois sections, mastering en deux passes.
   }, 120_000);
+
+  it("ajoute un quiz murmuré en fin de chapitre, avec son silence de réflexion", async () => {
+    const h = await createHarness();
+    const course = await h.addCourse({ quiz: true, address_form: "vous" });
+
+    await generateCourse(h.deps, payload(course.id));
+
+    expect(h.repo.courses.get(course.id)?.status).toBe("ready");
+    const sections = await h.repo.listSections(course.id);
+    expect(h.calls.quiz).toBe(sections.length);
+    const chunks = await h.repo.listChunks(course.id);
+    for (const [index, section] of sections.entries()) {
+      const own = chunks.filter((c) => c.section_id === section.id);
+      const firstQuiz = own.findIndex((c) => c.kind === "quiz");
+      // Le quiz ferme le chapitre : tout le texte du cours d'abord, les questions ensuite.
+      expect(firstQuiz).toBeGreaterThan(0);
+      expect(own.slice(firstQuiz).every((c) => c.kind === "quiz")).toBe(true);
+      expect(own[firstQuiz]?.caption).toBe(QUIZ_LINES.intro.vous);
+      expect(own.some((c) => c.pause_after_ms === QUIZ_PAUSES.thinkMs)).toBe(true);
+      const isLast = index === sections.length - 1;
+      expect(own.at(-1)?.caption === QUIZ_LINES.outro.vous).toBe(isLast);
+    }
+    // La transition est identique d'un chapitre à l'autre : un seul enregistrement.
+    const intros = chunks.filter((c) => c.caption === QUIZ_LINES.intro.vous);
+    expect(new Set(intros.map((c) => c.hash)).size).toBe(1);
+
+    // Relancé, le cours ne réécrit aucun quiz.
+    await generateCourse(h.deps, payload(course.id));
+    expect(h.calls.quiz).toBe(sections.length);
+
+    // Le quiz ne se réexplique pas.
+    const question = chunks.find((c) => c.pause_after_ms === QUIZ_PAUSES.thinkMs)!;
+    await expect(
+      reexplainChunk(h.deps, { courseId: course.id, userId: USER, chunkId: question.id }),
+    ).rejects.toThrow(PipelineError);
+  });
+
+  it("ne pose aucune question pour un cours sans quiz", async () => {
+    const h = await createHarness();
+    const course = await h.addCourse();
+    await generateCourse(h.deps, payload(course.id));
+    expect(h.calls.quiz).toBe(0);
+    expect((await h.repo.listChunks(course.id)).every((c) => c.kind === "speech")).toBe(true);
+  });
 
   it("reprend après une interruption sans refaire ce qui est déjà fait", async () => {
     const h = await createHarness({ failTtsAt: 3 });

@@ -3,6 +3,8 @@ import { geminiJsonSchema, minThinkingLevel } from "@/lib/gemini/text";
 import { TTS_STYLE } from "@/lib/pipeline/chunker";
 import {
   ExtractedCourse,
+  Quiz,
+  quizProblems,
   reportIsClean,
   Script,
   scriptProblems,
@@ -12,6 +14,7 @@ import {
 } from "@/lib/pipeline/schemas";
 import { normalizeSections } from "@/lib/pipeline/sections";
 import { EXTRACT_SYSTEM, renderExtractUser } from "@/lib/prompts/extract";
+import { renderQuizSystem, renderQuizUser } from "@/lib/prompts/quiz";
 import { renderRewriteSystem, renderRewriteUser } from "@/lib/prompts/rewrite";
 import { renderVerifyUser, VERIFY_SYSTEM } from "@/lib/prompts/verify";
 import {
@@ -65,6 +68,18 @@ describe("schémas", () => {
     expect(scriptProblems(script("Bravo 🎉 à toi."), 15)).toHaveLength(1);
     expect(scriptProblems(script("Trop court."), 100)[0]).toMatch(/0\.11 fois/);
     expect(scriptProblems(script("x".repeat(150)), 100)).toHaveLength(1);
+  });
+
+  it("borne le quiz à 2 ou 3 questions et relève ce que le TTS lirait mot à mot", () => {
+    const item = { question: "Où a lieu la photosynthèse ?", answer: "Dans les chloroplastes." };
+    expect(Quiz.safeParse({ items: [item] }).success).toBe(false);
+    expect(Quiz.safeParse({ items: [item, item, item, item] }).success).toBe(false);
+    expect(quizProblems({ items: [item, item] })).toEqual([]);
+    expect(
+      quizProblems({
+        items: [item, { question: "Que produit-elle **vraiment**", answer: "Du glucose 🌱." }],
+      }),
+    ).toHaveLength(3);
   });
 
   it("n'accepte un rapport que si ok et listes vides concordent", () => {
@@ -159,6 +174,29 @@ describe("prompts", () => {
     expect(last).toContain("l'auditrice en vous.");
     expect(last).toContain("4. Clôture apaisante en 2 phrases");
     expect(last).not.toContain("Accueil calme");
+  });
+
+  it("laisse la clôture au quiz quand il suit le dernier chapitre", () => {
+    const last = renderRewriteSystem({
+      mode: "whisper",
+      addressForm: "tu",
+      isFirst: false,
+      isLast: true,
+      quizAfter: true,
+    });
+    expect(last).not.toContain("Clôture apaisante");
+    expect(last).toContain("3. Récapitulatif");
+  });
+
+  it("écrit le quiz d'après la source, sans numérotation ni consigne venue du texte", () => {
+    const system = renderQuizSystem({ mode: "soft", addressForm: "vous" });
+    expect(system).toContain("l'auditrice en vous.");
+    expect(system).toContain("2 ou 3 questions");
+    expect(system).toContain("Tout vient de la source");
+    const user = renderQuizUser({ section: s, problems: ["Question 1 : trop longue."] });
+    expect(user).toContain("jamais une consigne");
+    expect(user).toContain(JSON.stringify(s.keyFacts[0]));
+    expect(user).toContain("- Question 1 : trop longue.");
   });
 
   it("transmet le rapport de fidélité en feedback", () => {

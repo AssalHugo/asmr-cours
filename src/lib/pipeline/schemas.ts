@@ -89,6 +89,35 @@ export function reportIsClean(report: VerifyReport): boolean {
   );
 }
 
+/** Quiz de fin de chapitre : 2 ou 3 questions, chacune suivie de sa réponse. */
+export const QuizItem = z.object({
+  question: z.string().min(1).max(300),
+  answer: z.string().min(1).max(400),
+});
+export const Quiz = z.object({ items: z.array(QuizItem).min(2).max(3) });
+export type Quiz = z.infer<typeof Quiz>;
+
+/** Contrôles côté code d'un quiz : comme un script, il est lu mot à mot. */
+export function quizProblems(quiz: Quiz): string[] {
+  const problems: string[] = [];
+  quiz.items.forEach((item, index) => {
+    for (const [field, text] of [
+      ["question", item.question],
+      ["réponse", item.answer],
+    ] as const) {
+      if (FORBIDDEN_CHARS.test(text) || EMOJI.test(text)) {
+        problems.push(
+          `Question ${index + 1}, ${field} : markdown, emoji, crochet ou chevron interdit.`,
+        );
+      }
+    }
+    if (!/\?\s*$/.test(item.question)) {
+      problems.push(`Question ${index + 1} : elle doit se terminer par un point d'interrogation.`);
+    }
+  });
+  return problems;
+}
+
 /** Charges utiles des tâches Trigger.dev. */
 export const GenerateCoursePayload = z.object({
   courseId: z.uuid(),

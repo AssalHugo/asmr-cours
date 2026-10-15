@@ -169,6 +169,7 @@ export async function createCourse(raw: unknown): Promise<ActionResult<{ courseI
     sourceKind: source.info.kind,
     pages: source.info.pages,
     mode: input.mode,
+    quiz: input.quiz,
     measured: (measured ?? []).flatMap((m) =>
       m.source_chars && m.duration_ms
         ? [{ sourceChars: m.source_chars, durationMs: m.duration_ms }]
@@ -209,6 +210,7 @@ export async function createCourse(raw: unknown): Promise<ActionResult<{ courseI
     ambience: input.ambience,
     ambience_gain_db: input.ambienceGainDb,
     address_form: input.addressForm,
+    quiz: input.quiz,
     est_cost_usd: Number(combo.totalUsd.toFixed(4)),
   });
   // L'index unique « un cours actif par compte » tranche entre deux lancements simultanés.
@@ -505,6 +507,7 @@ export async function reexplainPassage(
     .from("chunks")
     .select("id, caption, start_ms")
     .eq("course_id", courseId)
+    .eq("kind", "speech")
     .eq("caption", mark.caption);
   if (error) return fail(CHECK_FAILED);
   const passage = findMarkedPassage(passages, mark);

@@ -12,6 +12,7 @@ export type Database = {
           hash: string;
           id: string;
           idx: number;
+          kind: string;
           pause_after_ms: number;
           section_id: string;
           start_ms: number | null;
@@ -28,6 +29,7 @@ export type Database = {
           hash: string;
           id?: string;
           idx: number;
+          kind?: string;
           pause_after_ms?: number;
           section_id: string;
           start_ms?: number | null;
@@ -43,6 +45,7 @@ export type Database = {
           hash?: string;
           id?: string;
           idx?: number;
+          kind?: string;
           pause_after_ms?: number;
           section_id?: string;
           start_ms?: number | null;
@@ -84,6 +87,7 @@ export type Database = {
           mode: Database["public"]["Enums"]["voice_mode"];
           progress: number;
           quality: Database["public"]["Enums"]["tts_quality"];
+          quiz: boolean;
           source_chars: number | null;
           source_keys: string[];
           source_kind: string;
@@ -112,6 +116,7 @@ export type Database = {
           mode: Database["public"]["Enums"]["voice_mode"];
           progress?: number;
           quality: Database["public"]["Enums"]["tts_quality"];
+          quiz?: boolean;
           source_chars?: number | null;
           source_keys?: string[];
           source_kind: string;
@@ -139,6 +144,7 @@ export type Database = {
           mode?: Database["public"]["Enums"]["voice_mode"];
           progress?: number;
           quality?: Database["public"]["Enums"]["tts_quality"];
+          quiz?: boolean;
           source_chars?: number | null;
           source_keys?: string[];
           source_kind?: string;
@@ -435,6 +441,7 @@ export type Database = {
           idx: number;
           key_facts: NonNullable<Json>;
           key_terms: NonNullable<Json>;
+          quiz: Json | null;
           script: Json | null;
           source_text: string;
           start_ms: number | null;
@@ -450,6 +457,7 @@ export type Database = {
           idx: number;
           key_facts?: NonNullable<Json>;
           key_terms?: NonNullable<Json>;
+          quiz?: Json | null;
           script?: Json | null;
           source_text: string;
           start_ms?: number | null;
@@ -464,6 +472,7 @@ export type Database = {
           idx?: number;
           key_facts?: NonNullable<Json>;
           key_terms?: NonNullable<Json>;
+          quiz?: Json | null;
           script?: Json | null;
           source_text?: string;
           start_ms?: number | null;

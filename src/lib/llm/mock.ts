@@ -1,5 +1,6 @@
 import {
   ExtractedCourse,
+  Quiz,
   Script,
   type ExtractedSection,
   type Segment,
@@ -67,6 +68,10 @@ export function createMockLlm(): LlmProvider {
       );
     },
 
+    async quiz({ section }) {
+      return result(Quiz.parse({ items: mockQuiz(section) }));
+    },
+
     async verify() {
       return result({ ok: true, missingFacts: [], alteredFacts: [], inventedClaims: [] });
     },
@@ -99,4 +104,14 @@ export function mockSegments(section: ExtractedSection): Segment[] {
       breathBefore: index > 0 && index % 5 === 0,
     };
   });
+}
+
+/** Deux questions par section, sur ses deux premières phrases (ou ses keyFacts). */
+export function mockQuiz(section: ExtractedSection): { question: string; answer: string }[] {
+  const facts =
+    section.keyFacts.length >= 2 ? section.keyFacts : mockSegments(section).map((s) => s.text);
+  return [0, 1].map((index) => ({
+    question: `Que retiens-tu du point ${index + 1} de « ${section.title.slice(0, 120)} » ?`,
+    answer: (facts[index] ?? facts[0] ?? "Ce chapitre.").slice(0, 400),
+  }));
 }

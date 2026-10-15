@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   CHUNK_MAX_CHARS,
+  HARD_PAUSE_MS,
   chunkHash,
   chunkSection,
+  QUIZ_LINES,
+  QUIZ_PAUSES,
+  quizChunks,
   renderGeminiChunkText,
   speechDurationPlausible,
   ttsDelivery,
@@ -77,6 +81,48 @@ describe("chunkSection", () => {
 
   it("renvoie une liste vide pour un script vide", () => {
     expect(chunkSection([])).toEqual([]);
+  });
+});
+
+describe("quizChunks", () => {
+  const quiz = {
+    items: [
+      { question: "Où a lieu la photosynthèse ?", answer: "Dans les chloroplastes." },
+      { question: "Que produit-elle ?", answer: "Du glucose et du dioxygène." },
+    ],
+  };
+
+  it("fait suivre chaque question d'un silence de réflexion, puis de sa réponse", () => {
+    const chunks = quizChunks(quiz, { addressForm: "tu", isLast: false });
+    expect(chunks.every((c) => c.kind === "quiz")).toBe(true);
+    expect(chunks.map((c) => c.caption)).toEqual([
+      QUIZ_LINES.intro.tu,
+      "Où a lieu la photosynthèse ?",
+      "Dans les chloroplastes.",
+      "Que produit-elle ?",
+      "Du glucose et du dioxygène.",
+    ]);
+    expect(chunks.map((c) => c.pauseAfterMs)).toEqual([
+      QUIZ_PAUSES.introMs,
+      QUIZ_PAUSES.thinkMs,
+      QUIZ_PAUSES.answerMs,
+      QUIZ_PAUSES.thinkMs,
+      QUIZ_PAUSES.endMs,
+    ]);
+    // Le silence de réflexion est inséré par FFmpeg, jamais laissé à la voix.
+    expect(QUIZ_PAUSES.thinkMs).toBeGreaterThanOrEqual(HARD_PAUSE_MS);
+    expect(chunks.map((c) => renderGeminiChunkText(c.segments)).join("")).not.toContain("pause");
+  });
+
+  it("clôt la séance après le quiz du dernier chapitre, à la bonne forme d'adresse", () => {
+    const chunks = quizChunks(quiz, { addressForm: "vous", isLast: true });
+    expect(chunks[0]?.caption).toBe(QUIZ_LINES.intro.vous);
+    expect(chunks.at(-1)?.caption).toBe(QUIZ_LINES.outro.vous);
+    expect(chunks).toHaveLength(6);
+  });
+
+  it("marque les chunks du cours comme du texte", () => {
+    expect(chunkSection([seg("Une phrase.", 1200)])[0]?.kind).toBe("speech");
   });
 });
 

@@ -39,6 +39,7 @@ function rewriteContext(ctx: Ctx, row: SectionRow, count: number): RewriteContex
     addressForm: ctx.course.address_form === "vous" ? "vous" : "tu",
     isFirst: row.idx === 0,
     isLast: row.idx === count - 1,
+    quizAfter: ctx.course.quiz,
   };
 }
 

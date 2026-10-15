@@ -27,6 +27,12 @@ const TEXT = {
   verifyOutputTokens: 200,
 };
 
+/**
+ * Quiz de fin de chapitre, par section : transition, 3 questions et réponses au plus, silences
+ * de réflexion (`QUIZ_PAUSES`). Les silences n'ont pas de coût TTS, mais allongent la piste.
+ */
+const QUIZ = { spokenChars: 600, silenceSec: 30, outputTokens: 350 };
+
 export type EstimateModels = { text: string; check: string; tts: string; ttsLite: string };
 
 export type EstimateInput = {
@@ -35,6 +41,8 @@ export type EstimateInput = {
   /** Pages du PDF ou nombre d'images. */
   pages?: number;
   mode: VoiceMode;
+  /** Quiz audio en fin de chapitre. */
+  quiz?: boolean;
   /** Cours terminés avec la même voix et le même mode. */
   measured?: { sourceChars: number; durationMs: number }[];
   models: EstimateModels;
@@ -72,7 +80,7 @@ const tokens = (chars: number) => Math.ceil(chars / CHARS_PER_TOKEN);
 /** Coût estimé des étapes texte : extraction, réécriture, contrôle de fidélité. */
 export function estimateTextUsd(input: EstimateInput): number {
   const { sourceChars, models, at } = input;
-  const sections = Math.max(1, Math.ceil(sourceChars / TEXT.sectionChars));
+  const sections = sectionCount(sourceChars);
   const source = tokens(sourceChars);
   const script = Math.ceil(source * TEXT.scriptRatio * TEXT.jsonOverhead);
   const thinking = (out: number) => Math.ceil(out * TEXT.thinkingRatio);
@@ -111,8 +119,25 @@ export function estimateTextUsd(input: EstimateInput): number {
     },
     at,
   );
-  return extract + (rewrite + verify) * TEXT.retryMargin;
+  const quiz = input.quiz
+    ? costUsd(
+        models.text,
+        "standard",
+        {
+          inputTokens: source + sections * TEXT.promptOverheadTokens,
+          outputTokens: sections * QUIZ.outputTokens,
+          thinkingTokens: thinking(sections * QUIZ.outputTokens),
+          audioSeconds: 0,
+        },
+        at,
+      )
+    : 0;
+  return extract + (rewrite + verify) * TEXT.retryMargin + quiz;
 }
+
+/** Sections estimées du cours, comme pour les étapes texte. */
+const sectionCount = (sourceChars: number) =>
+  Math.max(1, Math.ceil(sourceChars / TEXT.sectionChars));
 
 /** Durée et coût d'un cours pour les 4 combinaisons Éco/Express × Standard/Économie. */
 export function estimateCourse(input: EstimateInput): CourseEstimate {
@@ -120,9 +145,14 @@ export function estimateCourse(input: EstimateInput): CourseEstimate {
     ? { text: MOCK_MODEL, check: MOCK_MODEL, tts: MOCK_MODEL, ttsLite: MOCK_MODEL }
     : input.models;
   const { rate, measured } = speechRate(input.mode, input.measured);
-  const durationSec = input.sourceChars / rate;
+  const quizSections = input.quiz ? sectionCount(input.sourceChars) : 0;
+  const quizSpokenSec = (quizSections * QUIZ.spokenChars) / rate;
+  const spokenSec = input.sourceChars / rate + quizSpokenSec;
+  const durationSec = spokenSec + quizSections * QUIZ.silenceSec;
   const textUsd = estimateTextUsd({ ...input, models });
-  const ttsInputTokens = tokens(input.sourceChars * TEXT.scriptRatio);
+  const ttsInputTokens = tokens(
+    input.sourceChars * TEXT.scriptRatio + quizSections * QUIZ.spokenChars,
+  );
 
   const combos = {} as Record<ComboKey, ComboEstimate>;
   for (const tier of ["eco", "express"] as const) {
@@ -134,7 +164,8 @@ export function estimateCourse(input: EstimateInput): CourseEstimate {
           inputTokens: ttsInputTokens,
           outputTokens: 0,
           thinkingTokens: 0,
-          audioSeconds: durationSec,
+          // Les silences sont insérés par FFmpeg : seule la voix est facturée.
+          audioSeconds: spokenSec,
         },
         input.at,
       );

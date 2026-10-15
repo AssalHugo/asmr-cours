@@ -13,6 +13,8 @@ export type RewriteContext = {
   addressForm: "tu" | "vous";
   isFirst: boolean;
   isLast: boolean;
+  /** Un quiz suit le chapitre : la clôture de la séance vient après lui, pas dans le script. */
+  quizAfter?: boolean;
 };
 
 export function renderRewriteSystem(ctx: RewriteContext): string {
@@ -21,7 +23,9 @@ export function renderRewriteSystem(ctx: RewriteContext): string {
     ...(ctx.isFirst ? ["   Accueil calme et invitation à respirer, 3 phrases maximum."] : []),
     "2. Explication progressive, une idée à la fois, dans l'ordre de la source.",
     "3. Récapitulatif en 2 à 4 phrases courtes reprenant les keyFacts essentiels.",
-    ...(ctx.isLast ? ["4. Clôture apaisante en 2 phrases, sans information nouvelle."] : []),
+    ...(ctx.isLast && !ctx.quizAfter
+      ? ["4. Clôture apaisante en 2 phrases, sans information nouvelle."]
+      : []),
   ].join("\n");
 
   return `Tu écris le script audio d'une séance de révision ASMR en français, lue d'une voix ${MODE_LABEL[ctx.mode]}

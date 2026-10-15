@@ -13,7 +13,7 @@ type Tables = Database["public"]["Tables"];
  * identifiants de run et de batch) sont réservées au serveur : `select("*")` serait refusé.
  */
 const COURSE_COLUMNS =
-  "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
+  "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, quiz, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
 export type Course = Omit<
   Tables["courses"]["Row"],
   "source_keys" | "trigger_run_id" | "batch_job_id" | "batch_submitted_at" | "chunk_takes"
@@ -136,7 +136,10 @@ export async function listSections(courseId: string): Promise<Section[]> {
   return data ?? [];
 }
 
-export type Passage = Pick<Tables["chunks"]["Row"], "id" | "section_id" | "caption" | "start_ms">;
+export type Passage = Pick<
+  Tables["chunks"]["Row"],
+  "id" | "section_id" | "kind" | "caption" | "start_ms"
+>;
 
 /** Passages d'un cours, dans l'ordre, pour en refaire un. Lus par pages de 1 000 lignes. */
 export async function listPassages(courseId: string): Promise<Passage[]> {
@@ -145,7 +148,7 @@ export async function listPassages(courseId: string): Promise<Passage[]> {
   for (let from = 0; ; from += 1000) {
     const { data } = await supabase
       .from("chunks")
-      .select("id, section_id, caption, start_ms")
+      .select("id, section_id, kind, caption, start_ms")
       .eq("course_id", courseId)
       .order("idx")
       .range(from, from + 999);
