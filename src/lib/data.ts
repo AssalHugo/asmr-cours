@@ -1,7 +1,6 @@
 import "server-only";
+export { billingModels } from "@/lib/billing";
 import { env } from "@/lib/env";
-import type { EstimateModels } from "@/lib/estimate";
-import { MOCK_MODEL } from "@/lib/pricing";
 import { PREBUILT_VOICES, VOICE_PRESETS } from "@/lib/prompts/voice-presets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -13,7 +12,7 @@ type Tables = Database["public"]["Tables"];
  * identifiants de run et de batch) sont réservées au serveur : `select("*")` serait refusé.
  */
 const COURSE_COLUMNS =
-  "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, quiz, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
+  "id, user_id, title, source_kind, source_chars, mode, tier, quality, voice_id, ambience, ambience_gain_db, address_form, quiz, is_sample, status, progress, error, est_cost_usd, actual_cost_usd, duration_ms, created_at, updated_at" as const;
 export type Course = Omit<
   Tables["courses"]["Row"],
   "source_keys" | "trigger_run_id" | "batch_job_id" | "batch_submitted_at" | "chunk_takes"
@@ -66,9 +65,11 @@ export async function getGlobalMonthlySpend(): Promise<number> {
 
 export async function listCourses(search?: string): Promise<Course[]> {
   const supabase = await createClient();
+  // Les échantillons de classeur s'écoutent depuis leur classeur.
   let query = supabase
     .from("courses")
     .select(COURSE_COLUMNS)
+    .eq("is_sample", false)
     .order("created_at", { ascending: false });
   const term = search?.trim();
   if (term) query = query.ilike("title", `%${term.replace(/[%_\\]/g, "\\$&")}%`);
@@ -299,23 +300,6 @@ export async function listCourseUsage(userId: string): Promise<CourseUsage[]> {
   }));
 }
 
-/** Modèles facturés : « mock » partout en mode mock, pour une estimation à zéro. */
-export function billingModels(): { models: EstimateModels; mock: boolean } {
-  const e = env();
-  const mock = e.AI_MODE === "mock";
-  return {
-    mock,
-    models: mock
-      ? { text: MOCK_MODEL, check: MOCK_MODEL, tts: MOCK_MODEL, ttsLite: MOCK_MODEL }
-      : {
-          text: e.GEMINI_MODEL_TEXT,
-          check: e.GEMINI_MODEL_CHECK,
-          tts: e.GEMINI_MODEL_TTS,
-          ttsLite: e.GEMINI_MODEL_TTS_LITE,
-        },
-  };
-}
-
 export type VoiceMessage = Pick<
   Tables["voice_messages"]["Row"],
   "id" | "duration_ms" | "at_ms" | "played_at" | "created_at"
@@ -331,4 +315,79 @@ export async function listVoiceMessages(courseId: string, userId: string): Promi
     .eq("recipient_id", userId)
     .order("created_at");
   return data ?? [];
+}
+
+const BINDER_COLUMNS =
+  "id, title, pages, page_chars, scanned, detection, status, error, settings, sample_course_id, created_at" as const;
+const LESSON_COLUMNS =
+  "id, idx, title, first_page, last_page, chars, selected, state, course_id" as const;
+export type Binder = Pick<
+  Tables["binders"]["Row"],
+  | "id"
+  | "title"
+  | "pages"
+  | "page_chars"
+  | "scanned"
+  | "detection"
+  | "status"
+  | "error"
+  | "settings"
+  | "sample_course_id"
+  | "created_at"
+>;
+export type BinderLesson = Pick<
+  Tables["binder_lessons"]["Row"],
+  "id" | "idx" | "title" | "first_page" | "last_page" | "chars" | "selected" | "state" | "course_id"
+>;
+
+/** Un classeur et ses leçons, dans l'ordre du document. */
+export async function getBinder(
+  binderId: string,
+): Promise<{ binder: Binder; lessons: BinderLesson[] } | null> {
+  const supabase = await createClient();
+  const { data: binder } = await supabase
+    .from("binders")
+    .select(BINDER_COLUMNS)
+    .eq("id", binderId)
+    .maybeSingle();
+  if (!binder) return null;
+  const { data: lessons, error } = await supabase
+    .from("binder_lessons")
+    .select(LESSON_COLUMNS)
+    .eq("binder_id", binderId)
+    .order("idx");
+  if (error) throw new Error(error.message);
+  return { binder, lessons };
+}
+
+export type BinderSummary = Pick<Binder, "id" | "title" | "status" | "error"> & {
+  lessons: Pick<BinderLesson, "state" | "selected" | "course_id">[];
+};
+
+/** Classeurs du compte, pour la bibliothèque. */
+export async function listBinders(): Promise<BinderSummary[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("binders")
+    .select("id, title, status, error, binder_lessons(state, selected, course_id)")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data.map(({ binder_lessons, ...binder }) => ({ ...binder, lessons: binder_lessons }));
+}
+
+export type CourseProgress = Pick<
+  Course,
+  "id" | "title" | "status" | "progress" | "error" | "duration_ms" | "ambience"
+>;
+
+/** Avancement des cours nés d'un classeur (leçons et échantillon). */
+export async function listCourseProgress(courseIds: string[]): Promise<CourseProgress[]> {
+  if (courseIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("courses")
+    .select("id, title, status, progress, error, duration_ms, ambience")
+    .in("id", courseIds);
+  if (error) throw new Error(error.message);
+  return data;
 }

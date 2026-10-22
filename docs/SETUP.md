@@ -114,7 +114,7 @@ L'envoi d'emails intégré à Supabase est limité à quelques messages par heur
    | `GEMINI_MODEL_*`                                                         | seulement si tu changes les défauts |
    | `GLOBAL_MONTHLY_BUDGET_USD`                                              | plafond tous comptes, si tu en veux |
    | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | celles de l'étape 3                 |
-   | `TTS_STANDARD_CONCURRENCY`, `MAX_SOURCE_CHARS`                           | seulement si tu changes les défauts |
+   | `TTS_STANDARD_CONCURRENCY`, `MAX_SOURCE_CHARS`, `MAX_PDF_PAGES`          | seulement si tu changes les défauts |
 
 3. Déploie les tâches :
 

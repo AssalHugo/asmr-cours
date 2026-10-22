@@ -13,9 +13,16 @@ export type SourceInfo = {
   approximate: boolean;
 };
 
-export type SourceCheck = { ok: true; info: SourceInfo } | { ok: false; message: string };
+export type SourceCheck =
+  | { ok: true; info: SourceInfo }
+  /** `too_long` : le PDF pourrait devenir un classeur, découpé en leçons. */
+  | { ok: false; message: string; reason?: "too_long" };
 
-const refuse = (message: string): SourceCheck => ({ ok: false, message });
+const refuse = (message: string, reason?: "too_long"): SourceCheck => ({
+  ok: false,
+  message,
+  reason,
+});
 
 /**
  * Contrôle serveur des sources d'un cours : appartenance des clés, présence, taille,
@@ -64,10 +71,13 @@ export async function inspectSource(
     }
     if (pdf.pages > e.MAX_PDF_PAGES) {
       return refuse(
-        `Ce PDF fait ${pdf.pages} pages : la limite est de ${e.MAX_PDF_PAGES}. Découpe-le en plusieurs cours.`,
+        `Ce PDF fait ${pdf.pages} pages : un cours en compte ${e.MAX_PDF_PAGES} au plus.`,
+        "too_long",
       );
     }
-    if (pdf.chars > e.MAX_SOURCE_CHARS) return refuse(tooLong(pdf.chars, e.MAX_SOURCE_CHARS));
+    if (pdf.chars > e.MAX_SOURCE_CHARS) {
+      return refuse(tooLong(pdf.chars, e.MAX_SOURCE_CHARS), "too_long");
+    }
     return {
       ok: true,
       info: {

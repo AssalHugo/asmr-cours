@@ -3,6 +3,137 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      binder_lessons: {
+        Row: {
+          binder_id: string;
+          chars: number;
+          course_id: string | null;
+          first_page: number;
+          id: string;
+          idx: number;
+          last_page: number;
+          planned_course_id: string;
+          selected: boolean;
+          source_key: string | null;
+          state: string;
+          title: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          binder_id: string;
+          chars?: number;
+          course_id?: string | null;
+          first_page: number;
+          id?: string;
+          idx: number;
+          last_page: number;
+          planned_course_id?: string;
+          selected?: boolean;
+          source_key?: string | null;
+          state?: string;
+          title: string;
+        };
+        Update: {
+          binder_id?: string;
+          chars?: number;
+          course_id?: string | null;
+          first_page?: number;
+          id?: string;
+          idx?: number;
+          last_page?: number;
+          planned_course_id?: string;
+          selected?: boolean;
+          source_key?: string | null;
+          state?: string;
+          title?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "binder_lessons_binder_id_fkey";
+            columns: ["binder_id"];
+            isOneToOne: false;
+            referencedRelation: "binders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "binder_lessons_course_id_fkey";
+            columns: ["course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      binders: {
+        Row: {
+          created_at: string;
+          detection: string;
+          error: string | null;
+          folder_id: string | null;
+          id: string;
+          page_chars: number[];
+          pages: number;
+          sample_course_id: string | null;
+          scanned: boolean;
+          settings: Json | null;
+          source_key: string;
+          status: Database["public"]["Enums"]["binder_status"];
+          title: string;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          detection: string;
+          error?: string | null;
+          folder_id?: string | null;
+          id: string;
+          page_chars: number[];
+          pages: number;
+          sample_course_id?: string | null;
+          scanned?: boolean;
+          settings?: Json | null;
+          source_key: string;
+          status?: Database["public"]["Enums"]["binder_status"];
+          title: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          detection?: string;
+          error?: string | null;
+          folder_id?: string | null;
+          id?: string;
+          page_chars?: number[];
+          pages?: number;
+          sample_course_id?: string | null;
+          scanned?: boolean;
+          settings?: Json | null;
+          source_key?: string;
+          status?: Database["public"]["Enums"]["binder_status"];
+          title?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "binders_folder_id_fkey";
+            columns: ["folder_id"];
+            isOneToOne: false;
+            referencedRelation: "folders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "binders_sample_course_id_fkey";
+            columns: ["sample_course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       chunks: {
         Row: {
           audio_key: string | null;
@@ -66,102 +197,6 @@ export type Database = {
             columns: ["section_id"];
             isOneToOne: false;
             referencedRelation: "sections";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      courses: {
-        Row: {
-          actual_cost_usd: number;
-          address_form: string;
-          ambience: string;
-          ambience_gain_db: number;
-          batch_job_id: string | null;
-          batch_submitted_at: string | null;
-          chunk_takes: Json;
-          created_at: string;
-          duration_ms: number | null;
-          error: string | null;
-          est_cost_usd: number | null;
-          id: string;
-          mode: Database["public"]["Enums"]["voice_mode"];
-          progress: number;
-          quality: Database["public"]["Enums"]["tts_quality"];
-          quiz: boolean;
-          source_chars: number | null;
-          source_keys: string[];
-          source_kind: string;
-          status: Database["public"]["Enums"]["course_status"];
-          tier: Database["public"]["Enums"]["tts_tier"];
-          title: string;
-          trigger_run_id: string | null;
-          updated_at: string;
-          user_id: string;
-          voice_id: string | null;
-        };
-        ComputedFields: never;
-        Insert: {
-          actual_cost_usd?: number;
-          address_form?: string;
-          ambience: string;
-          ambience_gain_db?: number;
-          batch_job_id?: string | null;
-          batch_submitted_at?: string | null;
-          chunk_takes?: Json;
-          created_at?: string;
-          duration_ms?: number | null;
-          error?: string | null;
-          est_cost_usd?: number | null;
-          id?: string;
-          mode: Database["public"]["Enums"]["voice_mode"];
-          progress?: number;
-          quality: Database["public"]["Enums"]["tts_quality"];
-          quiz?: boolean;
-          source_chars?: number | null;
-          source_keys?: string[];
-          source_kind: string;
-          status?: Database["public"]["Enums"]["course_status"];
-          tier: Database["public"]["Enums"]["tts_tier"];
-          title: string;
-          trigger_run_id?: string | null;
-          updated_at?: string;
-          user_id: string;
-          voice_id?: string | null;
-        };
-        Update: {
-          actual_cost_usd?: number;
-          address_form?: string;
-          ambience?: string;
-          ambience_gain_db?: number;
-          batch_job_id?: string | null;
-          batch_submitted_at?: string | null;
-          chunk_takes?: Json;
-          created_at?: string;
-          duration_ms?: number | null;
-          error?: string | null;
-          est_cost_usd?: number | null;
-          id?: string;
-          mode?: Database["public"]["Enums"]["voice_mode"];
-          progress?: number;
-          quality?: Database["public"]["Enums"]["tts_quality"];
-          quiz?: boolean;
-          source_chars?: number | null;
-          source_keys?: string[];
-          source_kind?: string;
-          status?: Database["public"]["Enums"]["course_status"];
-          tier?: Database["public"]["Enums"]["tts_tier"];
-          title?: string;
-          trigger_run_id?: string | null;
-          updated_at?: string;
-          user_id?: string;
-          voice_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "courses_voice_id_fkey";
-            columns: ["voice_id"];
-            isOneToOne: false;
-            referencedRelation: "voices";
             referencedColumns: ["id"];
           },
         ];
@@ -251,6 +286,105 @@ export type Database = {
             columns: ["course_id"];
             isOneToOne: false;
             referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      courses: {
+        Row: {
+          actual_cost_usd: number;
+          address_form: string;
+          ambience: string;
+          ambience_gain_db: number;
+          batch_job_id: string | null;
+          batch_submitted_at: string | null;
+          chunk_takes: NonNullable<Json>;
+          created_at: string;
+          duration_ms: number | null;
+          error: string | null;
+          est_cost_usd: number | null;
+          id: string;
+          is_sample: boolean;
+          mode: Database["public"]["Enums"]["voice_mode"];
+          progress: number;
+          quality: Database["public"]["Enums"]["tts_quality"];
+          quiz: boolean;
+          source_chars: number | null;
+          source_keys: string[];
+          source_kind: string;
+          status: Database["public"]["Enums"]["course_status"];
+          tier: Database["public"]["Enums"]["tts_tier"];
+          title: string;
+          trigger_run_id: string | null;
+          updated_at: string;
+          user_id: string;
+          voice_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actual_cost_usd?: number;
+          address_form?: string;
+          ambience: string;
+          ambience_gain_db?: number;
+          batch_job_id?: string | null;
+          batch_submitted_at?: string | null;
+          chunk_takes?: NonNullable<Json>;
+          created_at?: string;
+          duration_ms?: number | null;
+          error?: string | null;
+          est_cost_usd?: number | null;
+          id?: string;
+          is_sample?: boolean;
+          mode: Database["public"]["Enums"]["voice_mode"];
+          progress?: number;
+          quality: Database["public"]["Enums"]["tts_quality"];
+          quiz?: boolean;
+          source_chars?: number | null;
+          source_keys?: string[];
+          source_kind: string;
+          status?: Database["public"]["Enums"]["course_status"];
+          tier: Database["public"]["Enums"]["tts_tier"];
+          title: string;
+          trigger_run_id?: string | null;
+          updated_at?: string;
+          user_id: string;
+          voice_id?: string | null;
+        };
+        Update: {
+          actual_cost_usd?: number;
+          address_form?: string;
+          ambience?: string;
+          ambience_gain_db?: number;
+          batch_job_id?: string | null;
+          batch_submitted_at?: string | null;
+          chunk_takes?: NonNullable<Json>;
+          created_at?: string;
+          duration_ms?: number | null;
+          error?: string | null;
+          est_cost_usd?: number | null;
+          id?: string;
+          is_sample?: boolean;
+          mode?: Database["public"]["Enums"]["voice_mode"];
+          progress?: number;
+          quality?: Database["public"]["Enums"]["tts_quality"];
+          quiz?: boolean;
+          source_chars?: number | null;
+          source_keys?: string[];
+          source_kind?: string;
+          status?: Database["public"]["Enums"]["course_status"];
+          tier?: Database["public"]["Enums"]["tts_tier"];
+          title?: string;
+          trigger_run_id?: string | null;
+          updated_at?: string;
+          user_id?: string;
+          voice_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "courses_voice_id_fkey";
+            columns: ["voice_id"];
+            isOneToOne: false;
+            referencedRelation: "voices";
             referencedColumns: ["id"];
           },
         ];
@@ -643,7 +777,15 @@ export type Database = {
           course_id: string | null;
         };
         ComputedFields: never;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "usage_events_course_id_fkey";
+            columns: ["course_id"];
+            isOneToOne: false;
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       monthly_spend: {
         Row: {
@@ -657,7 +799,7 @@ export type Database = {
     };
     Functions: {
       admin_course_counts: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           courses: number;
           duration_ms: number;
@@ -695,16 +837,15 @@ export type Database = {
           user_id: string;
         }[];
       };
-      course_cost: {
-        Args: { p_course_id: string };
-        Returns: number;
+      course_cost: { Args: { p_course_id: string }; Returns: number };
+      replace_binder_lessons: {
+        Args: { p_binder_id: string; p_lessons: Json };
+        Returns: undefined;
       };
-      spend_since: {
-        Args: { p_since: string; p_user_id?: string };
-        Returns: number;
-      };
+      spend_since: { Args: { p_since: string; p_user_id?: string }; Returns: number };
     };
     Enums: {
+      binder_status: "draft" | "running" | "paused" | "done";
       course_status:
         | "queued"
         | "extracting"
@@ -830,6 +971,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      binder_status: ["draft", "running", "paused", "done"],
       course_status: [
         "queued",
         "extracting",

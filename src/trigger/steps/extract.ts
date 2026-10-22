@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { comboKey, estimateCourse } from "@/lib/estimate";
 import type { ExtractInput } from "@/lib/llm/provider";
-import { normalizeSections } from "@/lib/pipeline/sections";
+import { normalizeSections, sampleSection } from "@/lib/pipeline/sections";
 import { billed, patchCourse, PipelineError, recordUsage, setStatus, type Ctx } from "./context";
 
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -52,7 +52,9 @@ export async function extractStep(ctx: Ctx, opts: { titleIsDefault: boolean }): 
   );
   await recordUsage(ctx, "extract", result.model, "standard", result.usage);
 
-  const sections = normalizeSections(result.data.sections);
+  // Échantillon d'un classeur : quelques minutes du début, pour juger la voix avant de tout payer.
+  const extracted = normalizeSections(result.data.sections);
+  const sections = ctx.course.is_sample ? sampleSection(extracted) : extracted;
   const sourceChars = sections.reduce((sum, s) => sum + s.content.length, 0);
   if (sourceChars > limits.maxSourceChars) {
     throw new PipelineError(

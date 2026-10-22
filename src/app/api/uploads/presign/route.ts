@@ -15,7 +15,10 @@ export async function POST(request: Request) {
   const parsed = PresignRequest.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: "Demande invalide." }, { status: 400 });
 
-  const check = checkUploadRequest(parsed.data, env().MAX_UPLOAD_MB);
+  const check = checkUploadRequest(parsed.data, {
+    maxUploadMb: env().MAX_UPLOAD_MB,
+    maxBinderMb: env().MAX_BINDER_MB,
+  });
   if (!check.ok) return NextResponse.json({ message: check.message }, { status: 422 });
 
   // Changer de fichier dans l'assistant ne laisse pas l'ancien dépôt orphelin.

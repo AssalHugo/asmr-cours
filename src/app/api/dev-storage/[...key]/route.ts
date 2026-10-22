@@ -33,7 +33,8 @@ export async function PUT(request: Request, context: Context) {
     return new NextResponse(null, { status: 403 });
   }
   const body = Buffer.from(await request.arrayBuffer());
-  if (body.byteLength > env().MAX_UPLOAD_MB * 1024 * 1024) {
+  // Le plus grand dépôt permis : un classeur.
+  if (body.byteLength > Math.max(env().MAX_UPLOAD_MB, env().MAX_BINDER_MB) * 1024 * 1024) {
     return new NextResponse(null, { status: 413 });
   }
   await mkdir(dirname(resolved.path), { recursive: true });

@@ -1,4 +1,5 @@
 import { metadata, queue, wait } from "@trigger.dev/sdk";
+import { afterCourseJob } from "@/lib/binder/queue";
 import { createPipelineDeps } from "@/lib/pipeline/runtime";
 import type { RunProgress } from "@/lib/pipeline/status";
 import { PipelineError } from "./steps/context";
@@ -50,4 +51,18 @@ export function triggerDeps() {
 export function catchPipelineError({ error }: { error: unknown }) {
   if (error instanceof PipelineError) return { skipRetrying: true };
   return undefined;
+}
+
+type CoursePayload = { courseId: string; userId: string };
+
+/** Fin d'une tâche de cours réussie : la file des classeurs lance la leçon suivante. */
+export async function thenAdvanceQueue<T>(payload: CoursePayload, run: () => Promise<T>) {
+  const output: T = await run();
+  await afterCourseJob(payload.userId, payload.courseId, { fromTask: true });
+  return output;
+}
+
+/** Après l'échec définitif d'une tâche : une leçon en échec met son classeur en pause. */
+export function advanceQueueAfterFailure(payload: CoursePayload) {
+  return afterCourseJob(payload.userId, payload.courseId, { fromTask: true });
 }

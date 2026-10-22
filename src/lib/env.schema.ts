@@ -66,6 +66,9 @@ export const ServerEnvSchema = z
     MAX_UPLOAD_MB: positiveInt(50),
     MAX_PDF_PAGES: positiveInt(80),
     MAX_SOURCE_CHARS: positiveInt(150_000),
+    /** Classeur : gros PDF de plusieurs cours, découpé en leçons (chacune sous les limites ci-dessus). */
+    MAX_BINDER_MB: positiveInt(300),
+    MAX_BINDER_PAGES: positiveInt(1000),
     DAILY_COURSE_LIMIT: positiveInt(5),
   })
   // Les modes sans clés servent le dev et les E2E : `/api/dev-storage` n'isole pas les comptes.

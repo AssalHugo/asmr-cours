@@ -5,21 +5,26 @@ import {
   Cloud,
   FileText,
   Images,
+  Library,
   Loader2,
   TextCursorInput,
-  TriangleAlert,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createCourse, prepareSource, type PreparedSource } from "@/app/(app)/actions";
+import { createBinder } from "@/app/(app)/binders/actions";
 import { Choice } from "@/components/choice";
+import {
+  ComboPicker,
+  CourseSettingsFields,
+  initialListening,
+} from "@/components/course/course-settings-fields";
+import { ErrorNote } from "@/components/error-note";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { pickFromDrive, preloadDrive } from "@/components/upload/drive-picker";
 import { uploadFiles, UploadError } from "@/components/upload/upload-files";
-import { VoicePreviewButton } from "@/components/voice-preview-button";
-import { AMBIENCE_GAIN_RANGE, AMBIENCES, getAmbience } from "@/lib/ambiences";
+
 import { BUDGET_WARNING_RATIO, expressAllowed } from "@/lib/budget";
 import type { DriveConfig } from "@/lib/drive";
 import {
@@ -50,7 +55,14 @@ export type WizardProps = {
   models: EstimateModels;
   mock: boolean;
   measured: { voiceId: string; mode: VoiceMode; sourceChars: number; durationMs: number }[];
-  limits: { maxUploadMb: number; maxPdfPages: number; maxSourceChars: number; maxImages: number };
+  limits: {
+    maxUploadMb: number;
+    maxPdfPages: number;
+    maxSourceChars: number;
+    maxImages: number;
+    /** Un PDF plus lourd, ou trop long pour un cours, devient un classeur découpé en leçons. */
+    maxBinderMb: number;
+  };
   /** Réglages du sélecteur Google Drive ; `null` masque le bouton. */
   drive: DriveConfig | null;
 };
@@ -68,14 +80,8 @@ export function NewCourseWizard(props: WizardProps) {
 
   const [title, setTitle] = useState("");
   const [titleEdited, setTitleEdited] = useState(false);
-  const [mode, setMode] = useState<VoiceMode>(props.defaults.mode);
-  const [voiceId, setVoiceId] = useState(
-    props.voices.find((v) => v.id === props.defaults.voiceId)?.id ?? props.voices[0]?.id ?? "",
-  );
-  const [ambience, setAmbience] = useState(getAmbience(props.defaults.ambience)?.id ?? "rain");
-  const [gainDb, setGainDb] = useState(getAmbience(ambience)?.defaultGainDb ?? -6);
-  const [addressForm, setAddressForm] = useState(props.defaults.addressForm);
-  const [quiz, setQuiz] = useState(true);
+  const [listening, setListening] = useState(() => initialListening(props));
+  const { mode, voiceId, quiz } = listening;
   const [tier, setTier] = useState<TtsTier>(props.defaults.tier);
   const [quality, setQuality] = useState<TtsQuality>(props.defaults.quality);
   const [confirmed, setConfirmed] = useState(false);
@@ -120,12 +126,7 @@ export function NewCourseWizard(props: WizardProps) {
       title,
       // Un titre laissé tel quel sera remplacé par celui que propose l'extraction.
       titleIsDefault: !titleEdited && prepared.kind !== "text",
-      mode,
-      voiceId,
-      ambience,
-      ambienceGainDb: gainDb,
-      addressForm,
-      quiz,
+      ...listening,
       tier,
       quality,
       confirmed,
@@ -197,93 +198,7 @@ export function NewCourseWizard(props: WizardProps) {
             ) : null}
           </label>
 
-          <Choice
-            legend="Façon de parler"
-            name="mode"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: "whisper", label: "Chuchoté", hint: "Tout bas, très proche" },
-              { value: "soft", label: "Doux", hint: "Voix posée, un peu plus rapide" },
-            ]}
-          />
-
-          <fieldset className="space-y-3">
-            <legend className="text-muted-foreground text-sm">Voix</legend>
-            {props.voices.map((voice) => (
-              <div
-                key={voice.id}
-                className={cn(
-                  "bg-card flex items-center gap-3 rounded-2xl p-3 pl-4 ring-1 ring-transparent",
-                  voice.id === voiceId && "bg-raised ring-sand ring-2",
-                )}
-              >
-                <label className="flex min-h-11 flex-1 cursor-pointer items-center gap-3">
-                  <input
-                    type="radio"
-                    name="voice"
-                    value={voice.id}
-                    checked={voice.id === voiceId}
-                    onChange={() => setVoiceId(voice.id)}
-                    className="accent-sand size-5"
-                  />
-                  <span>{voice.label}</span>
-                </label>
-                <VoicePreviewButton voiceId={voice.id} mode={mode} label="Écouter la voix" />
-              </div>
-            ))}
-          </fieldset>
-
-          <Choice
-            legend="Ambiance"
-            name="ambience"
-            value={ambience}
-            columns={3}
-            onChange={(id) => {
-              setAmbience(id);
-              setGainDb(getAmbience(id)?.defaultGainDb ?? -6);
-            }}
-            options={AMBIENCES.map((a) => ({ value: a.id, label: a.label }))}
-          />
-          <label className="block space-y-3">
-            <span className="text-muted-foreground flex justify-between text-sm">
-              <span>Niveau de l&apos;ambiance</span>
-              <span className="tabular">
-                {gainDb > 0 ? "+" : ""}
-                {gainDb} dB
-              </span>
-            </span>
-            <Slider
-              value={[gainDb]}
-              min={AMBIENCE_GAIN_RANGE.min}
-              max={AMBIENCE_GAIN_RANGE.max}
-              step={1}
-              onValueChange={([value]) => setGainDb(value ?? gainDb)}
-              aria-label="Niveau de l'ambiance"
-            />
-          </label>
-
-          <Choice
-            legend="Murmure te dit"
-            name="address"
-            value={addressForm}
-            onChange={setAddressForm}
-            options={[
-              { value: "tu", label: "Tu" },
-              { value: "vous", label: "Vous" },
-            ]}
-          />
-
-          <Choice
-            legend="Quiz en fin de chapitre"
-            name="quiz"
-            value={quiz ? "on" : "off"}
-            onChange={(value) => setQuiz(value === "on")}
-            options={[
-              { value: "on", label: "Pour réviser", hint: "2 ou 3 questions, le temps d'y penser" },
-              { value: "off", label: "Pour s'endormir", hint: "Sans questions" },
-            ]}
-          />
+          <CourseSettingsFields voices={props.voices} value={listening} onChange={setListening} />
 
           {error ? <ErrorNote message={error} /> : null}
           <div className="flex gap-3">
@@ -320,59 +235,21 @@ export function NewCourseWizard(props: WizardProps) {
             </p>
           </div>
 
-          <fieldset className="space-y-3">
-            <legend className="text-muted-foreground text-sm">Vitesse et qualité</legend>
-            <div className="grid grid-cols-2 gap-2">
-              {(["eco", "express"] as const).flatMap((t) =>
-                (["standard", "economy"] as const).map((q) => {
-                  const option = estimate.combos[comboKey(t, q)];
-                  const blocked =
-                    t === "express" &&
-                    !expressAllowed(spentUsd, option.totalUsd, budgetUsd) &&
-                    !props.mock;
-                  const selected = t === tier && q === quality;
-                  return (
-                    <label
-                      key={comboKey(t, q)}
-                      className={cn(
-                        "bg-card flex min-h-24 cursor-pointer flex-col justify-between rounded-2xl p-4 ring-1 ring-transparent",
-                        selected && "bg-raised ring-sand ring-2",
-                        blocked && "cursor-not-allowed opacity-45",
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="combo"
-                        className="sr-only"
-                        checked={selected}
-                        disabled={blocked}
-                        onChange={() => {
-                          setTier(t);
-                          setQuality(q);
-                          setConfirmed(false);
-                        }}
-                      />
-                      <span>
-                        {t === "eco" ? "Éco" : "Express"} ·{" "}
-                        {q === "standard" ? "Standard" : "Économie"}
-                      </span>
-                      <span className="tabular text-sand text-xl">
-                        {formatUsd(option.totalUsd)}
-                      </span>
-                    </label>
-                  );
-                }),
-              )}
-            </div>
-            <p className="text-muted-foreground text-sm">
-              {tier === "eco"
-                ? "Éco : moitié prix, prêt en quelques heures (jusqu'à 24 h)."
-                : "Express : prêt en quelques minutes, plein tarif."}{" "}
-              {quality === "economy"
-                ? "Économie : voix un peu moins fine, un tiers moins chère."
-                : ""}
-            </p>
-          </fieldset>
+          <ComboPicker
+            combos={estimate.combos}
+            tier={tier}
+            quality={quality}
+            blocked={(t, q) =>
+              t === "express" &&
+              !expressAllowed(spentUsd, estimate.combos[comboKey(t, q)].totalUsd, budgetUsd) &&
+              !props.mock
+            }
+            onChange={(t, q) => {
+              setTier(t);
+              setQuality(q);
+              setConfirmed(false);
+            }}
+          />
 
           <div className="bg-card space-y-3 rounded-2xl p-4">
             <div className="flex justify-between">
@@ -439,15 +316,6 @@ export function NewCourseWizard(props: WizardProps) {
   );
 }
 
-function ErrorNote({ message }: { message: string }) {
-  return (
-    <p role="alert" className="text-destructive flex items-start gap-2 text-sm">
-      <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-      {message}
-    </p>
-  );
-}
-
 function SourceStep({
   limits,
   drive,
@@ -464,6 +332,11 @@ function SourceStep({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<null | { label: string; ratio: number | null }>(null);
   const [error, setError] = useState<string | null>(null);
+  /** PDF déposé mais trop long pour un seul cours : il peut devenir un classeur. */
+  const [tooLong, setTooLong] = useState<{ binderId: string; key: string; name: string } | null>(
+    null,
+  );
+  const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -492,7 +365,7 @@ function SourceStep({
         tab,
         {
           maxFiles: tab === "images" ? limits.maxImages : 1,
-          maxBytes: limits.maxUploadMb * 1024 * 1024,
+          maxBytes: (tab === "pdf" ? limits.maxBinderMb : limits.maxUploadMb) * 1024 * 1024,
         },
         (ratio) => setBusy({ label: "Récupération depuis Drive", ratio }),
         controller.signal,
@@ -509,9 +382,25 @@ function SourceStep({
     if (!controller.signal.aborted) setBusy(null);
   }
 
+  /** Classeur : le PDF est analysé (sommaire, signets), puis ses leçons proposées. */
+  async function openBinder(binderId: string, key: string, name: string) {
+    setBusy({ label: "Recherche des leçons", ratio: null });
+    const result = await createBinder({ binderId, key, fileName: name });
+    if (!result.ok) {
+      setBusy(null);
+      return setError(result.message);
+    }
+    router.push(`/binders/${result.data.binderId}`);
+  }
+
   async function sendFiles(files: File[]) {
     if (files.length === 0 || tab === "text") return;
     setError(null);
+    setTooLong(null);
+    const [pdf] = files;
+    if (tab === "pdf" && pdf && pdf.size > limits.maxUploadMb * 1024 * 1024) {
+      return sendBinder(pdf);
+    }
     if (tab === "images" && files.length > limits.maxImages) {
       return setError(`${limits.maxImages} photos maximum par cours.`);
     }
@@ -533,7 +422,13 @@ function SourceStep({
         keys: uploaded.keys,
         fileName: files[0]?.name,
       });
-      if (!result.ok) return setError(result.message);
+      if (!result.ok) {
+        const [key] = uploaded.keys;
+        if (result.reason === "too_long" && key && files[0]) {
+          setTooLong({ binderId: uploaded.courseId, key, name: files[0].name });
+        }
+        return setError(result.message);
+      }
       onPrepared(result.data);
     } catch (cause) {
       setError(
@@ -543,6 +438,27 @@ function SourceStep({
       );
     } finally {
       setBusy(null);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  async function sendBinder(file: File) {
+    try {
+      setBusy({ label: "Envoi", ratio: 0 });
+      const uploaded = await uploadFiles("binder", [file], ({ loaded, total }) =>
+        setBusy({ label: "Envoi", ratio: total > 0 ? loaded / total : 0 }),
+      );
+      const [key] = uploaded.keys;
+      if (!key) throw new UploadError("Réponse d'upload incomplète.");
+      await openBinder(uploaded.courseId, key, file.name);
+    } catch (cause) {
+      setBusy(null);
+      setError(
+        cause instanceof UploadError
+          ? cause.message
+          : "L'envoi a échoué. Vérifie ta connexion et réessaie.",
+      );
+    } finally {
       if (input.current) input.current.value = "";
     }
   }
@@ -667,7 +583,7 @@ function SourceStep({
               </span>
               <span className="text-muted-foreground text-sm">
                 {tab === "pdf"
-                  ? `${limits.maxPdfPages} pages et ${limits.maxUploadMb} Mo au plus.`
+                  ? `Jusqu'à ${limits.maxPdfPages} pages par cours. Plus long, Murmure le découpe en leçons.`
                   : `Jusqu'à ${limits.maxImages} photos, dans l'ordre de leur nom. JPG, PNG, WEBP ou HEIC.`}
               </span>
             </>
@@ -694,6 +610,22 @@ function SourceStep({
         </div>
       ) : null}
       {error ? <ErrorNote message={error} /> : null}
+      {tooLong && !busy ? (
+        <div className="bg-card space-y-3 rounded-2xl p-4">
+          <p className="text-sm">
+            Ce document regroupe sans doute plusieurs cours. Murmure peut y retrouver les leçons
+            (sommaire, titres) : tu choisis lesquelles écouter, sans rien découper toi-même.
+          </p>
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() => void openBinder(tooLong.binderId, tooLong.key, tooLong.name)}
+          >
+            <Library aria-hidden />
+            Le découper en leçons
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

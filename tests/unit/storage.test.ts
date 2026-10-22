@@ -28,24 +28,38 @@ describe("clés de stockage", () => {
   });
 });
 
+const LIMITS = { maxUploadMb: 50, maxBinderMb: 300 };
+
 describe("contrôle des uploads", () => {
   it("accepte un PDF dans la limite", () => {
     const res = checkUploadRequest(
       { kind: "pdf", files: [{ type: "application/pdf", size: 1024 }] },
-      50,
+      LIMITS,
     );
     expect(res).toEqual({ ok: true, extensions: ["pdf"] });
   });
   it("refuse un mauvais type, un fichier trop lourd ou plusieurs PDF", () => {
     const pdf = { type: "application/pdf", size: 10 };
-    expect(checkUploadRequest({ kind: "pdf", files: [{ ...pdf, type: "text/html" }] }, 50).ok).toBe(
-      false,
-    );
     expect(
-      checkUploadRequest({ kind: "pdf", files: [{ ...pdf, size: 51 * 1024 * 1024 }] }, 50).ok,
+      checkUploadRequest({ kind: "pdf", files: [{ ...pdf, type: "text/html" }] }, LIMITS).ok,
     ).toBe(false);
-    expect(checkUploadRequest({ kind: "pdf", files: [pdf, pdf] }, 50).ok).toBe(false);
-    expect(checkUploadRequest({ kind: "images", files: [pdf] }, 50).ok).toBe(false);
+    expect(
+      checkUploadRequest({ kind: "pdf", files: [{ ...pdf, size: 51 * 1024 * 1024 }] }, LIMITS).ok,
+    ).toBe(false);
+    expect(checkUploadRequest({ kind: "pdf", files: [pdf, pdf] }, LIMITS).ok).toBe(false);
+    expect(checkUploadRequest({ kind: "images", files: [pdf] }, LIMITS).ok).toBe(false);
+  });
+  it("laisse passer un gros PDF en classeur, dans sa propre limite", () => {
+    const big = { type: "application/pdf", size: 116 * 1024 * 1024 };
+    expect(checkUploadRequest({ kind: "pdf", files: [big] }, LIMITS).ok).toBe(false);
+    expect(checkUploadRequest({ kind: "binder", files: [big] }, LIMITS)).toEqual({
+      ok: true,
+      extensions: ["pdf"],
+    });
+    expect(
+      checkUploadRequest({ kind: "binder", files: [{ ...big, size: 301 * 1024 * 1024 }] }, LIMITS)
+        .ok,
+    ).toBe(false);
   });
   it("garde l'ordre des images", () => {
     const res = checkUploadRequest(
@@ -56,7 +70,7 @@ describe("contrôle des uploads", () => {
           { type: "image/png", size: 5 },
         ],
       },
-      50,
+      LIMITS,
     );
     expect(res).toEqual({ ok: true, extensions: ["heic", "png"] });
   });
