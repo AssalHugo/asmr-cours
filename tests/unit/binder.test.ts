@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PDFDocument } from "pdf-lib";
 import {
   alignOffset,
   cleanTitle,
@@ -12,6 +13,7 @@ import {
   withLastPages,
 } from "@/lib/binder/detect";
 import { mergeWithNext, partitionError, planLessons, splitLesson } from "@/lib/binder/lessons";
+import { extractPages, flattenOutlineNodes } from "@/lib/binder/pdf";
 import { sampleSection } from "@/lib/pipeline/sections";
 
 // Sommaire tel que pdf.js lit celui d'un polycopié du tutorat : deux colonnes mêlées, numéros
@@ -260,5 +262,62 @@ describe("échantillon", () => {
     expect(section?.content.endsWith(".")).toBe(true);
     expect(section?.keyTerms).toEqual(["nécrose"]);
     expect(section?.keyFacts).toHaveLength(1);
+  });
+});
+
+describe("signets hiérarchiques", () => {
+  it("conserve les signets de premier niveau s'il y en a au moins 2", () => {
+    const nodes = [
+      { title: "Chapitre 1", dest: 1 },
+      { title: "Chapitre 2", dest: 15 },
+    ];
+    expect(flattenOutlineNodes(nodes)).toEqual(nodes);
+  });
+
+  it("descend dans les enfants si la racine est un titre unique", () => {
+    const nodes = [
+      {
+        title: "UE 6 Anatomopathologie",
+        dest: 1,
+        items: [
+          { title: "Chapitre 1", dest: 5 },
+          { title: "Chapitre 2", dest: 20 },
+        ],
+      },
+    ];
+    expect(flattenOutlineNodes(nodes)).toEqual([
+      { title: "Chapitre 1", dest: 5 },
+      { title: "Chapitre 2", dest: 20 },
+    ]);
+  });
+});
+
+describe("découpe des pages PDF", () => {
+  it("extrait chaque plage et les transmet au fil de l'eau via onPart", async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([100, 100]);
+    doc.addPage([100, 100]);
+    doc.addPage([100, 100]);
+    doc.addPage([100, 100]);
+    const pdfBytes = Buffer.from(await doc.save());
+
+    const received: { index: number; pages: number }[] = [];
+    const parts = await extractPages(
+      pdfBytes,
+      [
+        { firstPage: 1, lastPage: 2 },
+        { firstPage: 3, lastPage: 4 },
+      ],
+      async (buf, idx) => {
+        const parsed = await PDFDocument.load(buf);
+        received.push({ index: idx, pages: parsed.getPageCount() });
+      },
+    );
+
+    expect(parts).toEqual([]);
+    expect(received).toEqual([
+      { index: 0, pages: 2 },
+      { index: 1, pages: 2 },
+    ]);
   });
 });

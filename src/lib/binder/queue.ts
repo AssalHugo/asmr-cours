@@ -182,7 +182,13 @@ async function launchLesson(
   });
   if (error) {
     // Un autre cours vient de démarrer : il relancera la file en se terminant.
-    if (error.message.includes(ONE_ACTIVE_INDEX)) return { launchedCourseId: null };
+    if (
+      error.message.includes(ONE_ACTIVE_INDEX) ||
+      error.code === "23505" ||
+      error.message.includes("courses_pkey")
+    ) {
+      return { launchedCourseId: null };
+    }
     return pause(`« ${lesson.title} » n'a pas pu être créée. Retire-la de la file pour continuer.`);
   }
   await admin

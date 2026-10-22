@@ -28,6 +28,7 @@ create table binders (
 );
 
 create index binders_user_created_idx on binders (user_id, created_at desc);
+create index binders_folder_idx on binders (folder_id);
 
 create trigger binders_set_updated_at
   before update on binders

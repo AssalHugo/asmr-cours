@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 import { MAX_IMAGES } from "@/lib/uploads";
 
 export const metadata: Metadata = { title: "Nouveau cours" };
+export const maxDuration = 60;
 
 export default async function NewCoursePage() {
   const user = await requireUser();

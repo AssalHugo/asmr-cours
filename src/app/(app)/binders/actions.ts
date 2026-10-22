@@ -1,5 +1,7 @@
 "use server";
 
+export const maxDuration = 60;
+
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -34,7 +36,6 @@ import { env } from "@/lib/env";
 import { comboKey, estimateCourse, type TtsTier } from "@/lib/estimate";
 import { SAMPLE_MAX_CHARS } from "@/lib/pipeline/sections";
 import { isActive } from "@/lib/pipeline/status";
-import { mapLimit } from "@/lib/retry";
 import { keys, storage } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -165,16 +166,16 @@ async function uploadParts(
 ): Promise<string[]> {
   if (parts.length === 0) return [];
   const store = storage();
-  const files = await extractPages(
-    await store.get(binder.source_key),
-    parts.map((p) => p.range),
-  );
+  const pdfData = await store.get(binder.source_key);
   const uploaded = parts.map((p) => keys.upload(user.id, p.courseId, SOURCE_FILE));
-  await mapLimit(parts, 4, async (_, index) => {
-    const file = files[index];
-    const key = uploaded[index];
-    if (file && key) await store.put(key, file, "application/pdf");
-  });
+  await extractPages(
+    pdfData,
+    parts.map((p) => p.range),
+    async (file, index) => {
+      const key = uploaded[index];
+      if (file && key) await store.put(key, file, "application/pdf");
+    },
+  );
   return uploaded;
 }
 

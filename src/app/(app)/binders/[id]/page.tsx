@@ -16,6 +16,7 @@ import {
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Classeur" };
+export const maxDuration = 60;
 
 export default async function BinderPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
