@@ -100,6 +100,25 @@ Un seul cours en préparation par compte : c'est un index unique partiel qui le 
 
 Le suivi de l'app reste une estimation : la console de facturation Google fait foi.
 
+## Classeurs
+
+Un polycopié de plusieurs cours (300 pages, 100 Mo et plus) ne passe pas en un seul cours : il dépasserait `MAX_PDF_PAGES`, et un essai raté coûterait tout le document. Il devient un **classeur** (`binders`, `binder_lessons`) :
+
+```mermaid
+flowchart LR
+  U[PDF déposé<br/>jusqu'à MAX_BINDER_MB] --> D[détection sans IA<br/>sommaire · signets · tranches]
+  D --> C[choix et retouche<br/>des leçons]
+  C --> E[échantillon<br/>≈ 5 min, Express]
+  E --> F[file : une leçon<br/>à la fois]
+  F --> L[cours ordinaires<br/>dans un dossier]
+```
+
+- **Détection** (`src/lib/binder/detect.ts`, fonctions pures) : texte de chaque page avec unpdf (2 s pour 315 pages), puis le sommaire en tête du document (renvois « p39 », points de conduite, décalage de numérotation retrouvé d'après les titres), à défaut les signets du PDF, à défaut des tranches de 20 pages. Une leçon court jusqu'à la veille de la suivante ; les pages vides en bordure ne sont pas envoyées ; une leçon trop longue pour un cours est coupée en parts égales. Les caractères de chaque page sont gardés (`page_chars`) : l'écran réestime une leçon retouchée sans relire le PDF.
+- **Découpe** (`src/lib/binder/pdf.ts`) : pdf-lib lit le PDF une fois et en tire une plage par leçon, déposée sous `uploads/{user}/{planned_course_id}/source.pdf` : supprimer le cours emporte ses pages.
+- **Échantillon** : un cours `is_sample`, caché de la bibliothèque, fait du début d'une leçon (2 à 4 pages, sans la page de titre). Toujours en Express ; l'extraction n'en garde qu'une section d'environ 4 000 caractères (`sampleSection`). Un nouvel échantillon remplace le précédent.
+- **File** (`src/lib/binder/queue.ts`) : à la fin de chaque tâche de cours (Trigger.dev ou inline), `afterCourseJob` met en pause le classeur d'une leçon en échec, puis `advanceBinders` lance la leçon suivante si plus rien n'est en préparation. Chaque leçon est contrôlée contre le plafond du budget (les 80 % ont été confirmés au lancement) ; au-delà, la file se met en pause avec un message, et reprend quand l'utilisatrice la relance (avec d'autres réglages si elle veut). Sous Trigger.dev, la leçon suivante est déclenchée depuis la tâche qui finit : elle attend dans la même file (`concurrencyKey`).
+- Lancer une file compte pour un seul lancement dans `DAILY_COURSE_LIMIT`. Les leçons sont rangées dans un dossier au nom du classeur.
+
 ## Le lecteur
 
 ```mermaid

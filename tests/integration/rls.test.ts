@@ -346,6 +346,60 @@ describe.skipIf(!isLocal)("RLS (Supabase local)", () => {
     expect((await a.client.from("courses").select("id")).data).toEqual([{ id: courseOfA }]);
   });
 
+  it("montre ses classeurs à leur propriétaire seule, sans clés de stockage ni écriture", async () => {
+    const [a, b] = [users[0]!, users[1]!];
+    const binderId = randomUUID();
+    const created = await admin.from("binders").insert({
+      id: binderId,
+      user_id: a.id,
+      title: "UE 6",
+      source_key: `uploads/${a.id}/${binderId}/000.pdf`,
+      pages: 3,
+      page_chars: [10, 2000, 2000],
+      detection: "toc",
+    });
+    expect(created.error).toBeNull();
+    const replaced = await admin.rpc("replace_binder_lessons", {
+      p_binder_id: binderId,
+      p_lessons: [
+        { idx: 0, title: "Préface", first_page: 1, last_page: 1, chars: 10, selected: false },
+        { idx: 1, title: "Leçon", first_page: 2, last_page: 3, chars: 4000, selected: true },
+      ],
+    });
+    expect(replaced.error).toBeNull();
+
+    const own = await a.client.from("binders").select("id, title, status");
+    expect(own.data).toEqual([{ id: binderId, title: "UE 6", status: "draft" }]);
+    const lessons = await a.client.from("binder_lessons").select("title, state").order("idx");
+    expect(lessons.data).toEqual([
+      { title: "Préface", state: "idle" },
+      { title: "Leçon", state: "idle" },
+    ]);
+    expect((await a.client.from("binders").select("source_key")).error).not.toBeNull();
+    expect((await a.client.from("binder_lessons").select("source_key")).error).not.toBeNull();
+    expect((await b.client.from("binders").select("id")).data).toEqual([]);
+    expect((await b.client.from("binder_lessons").select("id")).data).toEqual([]);
+
+    await a.client.from("binders").update({ status: "running" }).eq("id", binderId);
+    await a.client.from("binder_lessons").delete().eq("binder_id", binderId);
+    expect((await a.client.from("binders").select("status")).data).toEqual([{ status: "draft" }]);
+    expect((await a.client.from("binder_lessons").select("id")).data).toHaveLength(2);
+    const rpc = await a.client.rpc("replace_binder_lessons", {
+      p_binder_id: binderId,
+      p_lessons: [],
+    });
+    expect(rpc.error).not.toBeNull();
+
+    // Une leçon invalide n'efface pas les précédentes : la fonction est d'un seul tenant.
+    const broken = await admin.rpc("replace_binder_lessons", {
+      p_binder_id: binderId,
+      p_lessons: [{ idx: 0, title: "", first_page: 1, last_page: 3, chars: 0, selected: true }],
+    });
+    expect(broken.error).not.toBeNull();
+    expect((await a.client.from("binder_lessons").select("id")).data).toHaveLength(2);
+    await admin.from("binders").delete().eq("id", binderId);
+  });
+
   it("ne laisse rien lire sans session", async () => {
     const anon: Client = createClient<Database>(url ?? "", publishableKey ?? "", {
       auth: { persistSession: false, autoRefreshToken: false },

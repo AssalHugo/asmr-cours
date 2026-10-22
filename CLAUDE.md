@@ -37,6 +37,7 @@ Règles Next.js propres à cette version : @AGENTS.md
 - Mode admin (`/admin`, `ADMIN_EMAILS`) : `requireAdmin()` d'abord (404 sinon), puis lectures avec la clé secrète dans `src/lib/admin.ts`. Agrégats par fonctions SQL `admin_*`, exécutables par `service_role` seulement.
 - Messages vocaux (`voice_messages`) : enregistrés au micro depuis `/admin/courses/[id]` (MediaRecorder, MP4/AAC de préférence), déposés par URL présignée sous `courses/{id}/messages/`, servis par `/api/messages/[id]`. Joués une fois dans le lecteur (`useVoiceMessages`), cours en pause ; si la lecture automatique est refusée (iOS), une carte « Écouter » attend un toucher.
 - Quiz de fin de chapitre (`courses.quiz`, `sections.quiz`, chunks `kind = 'quiz'`) : étape `quizStep` après la réécriture, chunks par `quizChunks`. Désactivé au lancement par « Pour s'endormir ».
+- Classeurs (`binders`, `binder_lessons`) : un gros PDF (≤ `MAX_BINDER_MB`) découpé en leçons sans IA (`src/lib/binder/detect.ts` : sommaire, signets, tranches), un échantillon `courses.is_sample` (Express, une section, caché de la bibliothèque), puis une file : `afterCourseJob` en fin de chaque tâche lance la leçon suivante (`advanceBinders`) ou met le classeur en pause. Leçons remplacées d'un seul tenant par la fonction SQL `replace_binder_lessons`.
 - Inscriptions Supabase fermées : le compte d'une adresse invitée est créé par `sendMagicLink` avec la clé secrète.
 - FFmpeg : toujours `spawn` avec un tableau d'arguments.
 - Textes d'interface en français.
@@ -65,6 +66,7 @@ Règles Next.js propres à cette version : @AGENTS.md
 
 - `pnpm test` : unitaires + intégration (pipeline complet en mémoire avec vrai FFmpeg, RLS contre Supabase local si `.env.local` existe). Environ quatre minutes.
 - `pnpm test:e2e` : build de production sur le port 3100, navigateur avec AAC (Chrome ou Brave), Supabase local. Connexion par lien magique fabriqué avec la clé secrète locale, sans contournement dans l'app.
+- `.env.local` peut redéfinir plus bas les variables Supabase vers le projet hébergé : la dernière valeur l'emporte, pour Next comme pour Vitest (les tests RLS se sautent alors).
 - `page.goto` ne navigue pas quand Playwright simule le hors-ligne : passer par `location.assign`.
 
 ## À valider avec de vraies clés

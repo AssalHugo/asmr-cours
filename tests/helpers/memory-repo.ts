@@ -180,6 +180,7 @@ export function makeCourse(
     ambience_gain_db: -6,
     address_form: "tu",
     quiz: false,
+    is_sample: false,
     status: "queued",
     progress: 0,
     error: null,

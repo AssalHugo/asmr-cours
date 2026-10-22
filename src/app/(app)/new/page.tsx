@@ -42,6 +42,7 @@ export default async function NewCoursePage() {
           maxPdfPages: e.MAX_PDF_PAGES,
           maxSourceChars: e.MAX_SOURCE_CHARS,
           maxImages: MAX_IMAGES,
+          maxBinderMb: e.MAX_BINDER_MB,
         }}
         drive={driveConfig(e)}
       />

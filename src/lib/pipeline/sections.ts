@@ -107,3 +107,36 @@ function unique(items: string[]): string[] {
     return true;
   });
 }
+
+/** Texte gardé pour l'échantillon d'un classeur : quelques minutes de voix. */
+export const SAMPLE_MAX_CHARS = 4000;
+
+/**
+ * Échantillon : une seule section, le début du cours coupé en fin de phrase, avec les
+ * termes et faits qu'il contient encore. Fonction pure.
+ */
+export function sampleSection(
+  sections: ExtractedSection[],
+  maxChars = SAMPLE_MAX_CHARS,
+): ExtractedSection[] {
+  const [first] = sections;
+  if (!first) return sections;
+  const joined = sections.map((s) => s.content.trim()).join("\n\n");
+  const sentences = joined.match(/[^.!?…\n]+(?:[.!?…]+["»)]*|\n+|$)\s*/g) ?? [joined];
+  let content = "";
+  for (const sentence of sentences) {
+    if (content.length > 0 && content.length + sentence.length > maxChars) break;
+    content += sentence;
+  }
+  content = content.trim().slice(0, SECTION_MAX_CHARS);
+  const lowered = content.toLowerCase();
+  const inside = (item: string) => lowered.includes(item.toLowerCase());
+  return [
+    {
+      title: first.title,
+      content,
+      keyTerms: unique(sections.flatMap((s) => s.keyTerms).filter(inside)).slice(0, 12),
+      keyFacts: unique(sections.flatMap((s) => s.keyFacts).filter(inside)).slice(0, 15),
+    },
+  ];
+}

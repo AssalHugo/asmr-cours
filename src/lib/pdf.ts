@@ -2,7 +2,7 @@ import "server-only";
 import { extractText, getDocumentProxy } from "unpdf";
 
 /** En dessous de ce nombre de caractères par page, le PDF est traité comme un scan. */
-const SCAN_THRESHOLD_CHARS_PER_PAGE = 200;
+export const SCAN_THRESHOLD_CHARS_PER_PAGE = 200;
 /** Estimations quand le texte n'est pas lisible sans IA (scan, photo de notes). */
 export const APPROX_CHARS_PER_SCANNED_PAGE = 1800;
 export const APPROX_CHARS_PER_PHOTO = 1200;

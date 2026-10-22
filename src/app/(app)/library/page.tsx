@@ -1,4 +1,4 @@
-import { Plus, Search } from "lucide-react";
+import { Library, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BreathOrb } from "@/components/breath-orb";
@@ -11,9 +11,12 @@ import {
   listCourseFolders,
   listCourses,
   listFlaggedCourseIds,
+  listBinders,
   listFolders,
   listPlayback,
   listSharedWithMe,
+  type BinderSummary,
+  type Course,
 } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Bibliothèque" };
@@ -28,13 +31,14 @@ export default async function LibraryPage({
 }) {
   const user = await requireUser();
   const { q, folder: folderParam } = await searchParams;
-  const [allCourses, playback, flagged, shared, folders, placements] = await Promise.all([
+  const [allCourses, playback, flagged, shared, folders, placements, binders] = await Promise.all([
     listCourses(q),
     listPlayback(),
     listFlaggedCourseIds(),
     listSharedWithMe(user.id),
     listFolders(),
     listCourseFolders(),
+    listBinders(),
   ]);
   const searching = Boolean(q?.trim());
 
@@ -125,6 +129,10 @@ export default async function LibraryPage({
         </nav>
       ) : null}
 
+      {binders.length > 0 && !searching && filter === null ? (
+        <BinderList binders={binders} courses={allCourses} />
+      ) : null}
+
       {current ? (
         <div className="mb-4">
           <FolderActions folder={current} />
@@ -185,5 +193,45 @@ export default async function LibraryPage({
         </ul>
       )}
     </main>
+  );
+}
+
+const BINDER_STATUS: Record<BinderSummary["status"], string> = {
+  draft: "Leçons à choisir",
+  running: "En cours",
+  paused: "En pause",
+  done: "Terminé",
+};
+
+/** Classeurs : un gros PDF découpé en leçons, préparées l'une après l'autre. */
+function BinderList({ binders, courses }: { binders: BinderSummary[]; courses: Course[] }) {
+  const status = new Map(courses.map((c) => [c.id, c.status]));
+  return (
+    <section aria-label="Classeurs" className="mb-8 space-y-2">
+      {binders.map((binder) => {
+        const queued = binder.lessons.filter((l) => l.state !== "idle").length;
+        const ready = binder.lessons.filter(
+          (l) => l.course_id && status.get(l.course_id) === "ready",
+        ).length;
+        return (
+          <Link
+            key={binder.id}
+            href={`/binders/${binder.id}`}
+            className="bg-card hover:bg-raised flex min-h-16 items-center gap-3 rounded-2xl p-4 transition-colors"
+          >
+            <Library className="text-lavender size-6 shrink-0" strokeWidth={1.6} aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{binder.title}</span>
+              <span className="text-muted-foreground tabular block text-sm">
+                {BINDER_STATUS[binder.status]}
+                {binder.status === "draft"
+                  ? ` · ${binder.lessons.length} leçons`
+                  : ` · ${ready}/${queued} prêtes`}
+              </span>
+            </span>
+          </Link>
+        );
+      })}
+    </section>
   );
 }

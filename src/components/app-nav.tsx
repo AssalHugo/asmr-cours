@@ -29,7 +29,8 @@ export function AppNav({ admin = false }: { admin?: boolean }) {
           const active =
             pathname === href ||
             pathname.startsWith(`${href}/`) ||
-            (href === "/library" && pathname.startsWith("/courses/"));
+            (href === "/library" &&
+              (pathname.startsWith("/courses/") || pathname.startsWith("/binders/")));
           return (
             <li key={href} className="flex-1">
               <Link

@@ -1,5 +1,6 @@
 import "server-only";
 import { runs, tasks } from "@trigger.dev/sdk";
+import { afterCourseJob } from "@/lib/binder/queue";
 import { env, triggerEnv } from "@/lib/env";
 import { createPipelineDeps } from "@/lib/pipeline/runtime";
 import type {
@@ -54,13 +55,19 @@ async function runInline(job: Job): Promise<void> {
       keepReady: job.kind === "remix",
     }).catch(() => undefined);
   }
+  // Leçon suivante d'un classeur, si plus rien n'est en préparation.
+  await afterCourseJob(job.payload.userId, job.payload.courseId);
 }
 
 /**
  * Lance une tâche de cours. Sous Trigger.dev, renvoie l'identifiant du run ;
  * en mode inline (dev, E2E), la tâche tourne dans le process et l'UI suit la base.
+ * `fromTask` : déclenchée depuis une tâche, où le SDK est authentifié sans les clés du serveur.
  */
-export async function startJob(job: Job): Promise<{ runId: string | null }> {
+export async function startJob(
+  job: Job,
+  opts: { fromTask?: boolean } = {},
+): Promise<{ runId: string | null }> {
   if (env().JOBS_MODE === "inline") {
     const userId = job.payload.userId;
     const previous = inlineQueues.get(userId) ?? Promise.resolve();
@@ -71,7 +78,7 @@ export async function startJob(job: Job): Promise<{ runId: string | null }> {
     return { runId: null };
   }
 
-  triggerEnv();
+  if (!opts.fromTask) triggerEnv();
   const options = { concurrencyKey: job.payload.userId };
   const handle =
     job.kind === "generate-course"

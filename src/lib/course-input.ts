@@ -24,15 +24,8 @@ export const SourceInput = z.discriminatedUnion("kind", [
 ]);
 export type SourceInput = z.infer<typeof SourceInput>;
 
-/** Réglages et lancement (étapes 2 et 3). */
-export const CreateCourseInput = z.object({
-  courseId: z.uuid(),
-  source: z.object({
-    kind: z.enum(["pdf", "images", "text"]),
-    keys: z.array(z.string()).min(1).max(30),
-  }),
-  title: z.string().trim().min(1, "Donne un titre à ce cours.").max(200),
-  titleIsDefault: z.boolean(),
+/** Réglages d'un cours : voix, ambiance, quiz, vitesse et qualité. Communs aux leçons d'un classeur. */
+export const CourseSettings = z.object({
   mode: z.enum(["whisper", "soft"]),
   voiceId: z.uuid(),
   ambience,
@@ -42,10 +35,58 @@ export const CreateCourseInput = z.object({
   quiz: z.boolean(),
   tier: z.enum(["eco", "express"]),
   quality: z.enum(["standard", "economy"]),
+});
+export type CourseSettings = z.infer<typeof CourseSettings>;
+
+/** Réglages et lancement (étapes 2 et 3). */
+export const CreateCourseInput = CourseSettings.extend({
+  courseId: z.uuid(),
+  source: z.object({
+    kind: z.enum(["pdf", "images", "text"]),
+    keys: z.array(z.string()).min(1).max(30),
+  }),
+  title: z.string().trim().min(1, "Donne un titre à ce cours.").max(200),
+  titleIsDefault: z.boolean(),
   /** Confirmation explicite du dépassement des 80 % du budget. */
   confirmed: z.boolean(),
 });
 export type CreateCourseInput = z.infer<typeof CreateCourseInput>;
+
+/** Classeur : PDF déposé (clé sous le préfixe du dépôt), à découper en leçons. */
+export const CreateBinderInput = z.object({
+  binderId: z.uuid(),
+  key: z.string().min(1).max(300),
+  fileName: z.string().max(200).optional(),
+});
+
+/** Leçons telles que modifiées à l'écran : chacune court jusqu'à la veille de la suivante. */
+export const BinderLessonsInput = z
+  .array(
+    z.object({
+      title: z.string().trim().min(1, "Donne un titre à chaque leçon.").max(200),
+      firstPage: z.number().int().min(1),
+      selected: z.boolean(),
+    }),
+  )
+  .min(1)
+  .max(500);
+
+/** Échantillon : le début d'une leçon, avec les réglages choisis. */
+export const BinderSampleInput = z.object({
+  binderId: z.uuid(),
+  lessons: BinderLessonsInput,
+  lessonIndex: z.number().int().min(0),
+  settings: CourseSettings,
+});
+
+/** Mise en file des leçons cochées. */
+export const StartBinderInput = z.object({
+  binderId: z.uuid(),
+  lessons: BinderLessonsInput,
+  settings: CourseSettings,
+  /** Confirmation explicite du dépassement des 80 % du budget par la première leçon. */
+  confirmed: z.boolean(),
+});
 
 export const RemixInput = z.object({ courseId: z.uuid(), ambience, ambienceGainDb: gainDb });
 
