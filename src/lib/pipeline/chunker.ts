@@ -130,12 +130,13 @@ function longestPauseIndex(run: Segment[]): number {
 
 /**
  * Texte envoyé à Gemini TTS pour un chunk. Les balises restent en anglais, même pour un
- * texte français : ce sont des événements vocaux, pas du texte lu.
+ * texte français : ce sont des événements vocaux, pas du texte lu. Jamais de `<breath>` en
+ * tête de chunk : il suivrait un silence et, chuchoté, sonnerait comme un « chut » sec.
  */
 export function renderGeminiChunkText(segments: Segment[]): string {
   return segments
     .map((segment, index) => {
-      const breath = segment.breathBefore ? "<breath> " : "";
+      const breath = segment.breathBefore && index > 0 ? "<breath> " : "";
       const isLast = index === segments.length - 1;
       const separator = isLast
         ? ""

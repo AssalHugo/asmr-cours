@@ -5,8 +5,13 @@ export const TRIM_THRESHOLD_DB = -60;
 /** Marge de silence conservée de part et d'autre de la parole. */
 export const TRIM_KEEP_SECONDS = 0.08;
 
-/** Fondu aux deux bords d'un chunk : une coupe franche hors d'un passage à zéro claque. */
-export const EDGE_FADE_SECONDS = 0.01;
+/**
+ * Fondus aux bords d'un chunk : une coupe franche hors d'un passage à zéro claque. L'entrée
+ * est plus longue : elle adoucit l'attaque d'un souffle chuchoté après un silence, et tombe
+ * pour l'essentiel dans la marge conservée avant la parole.
+ */
+export const FADE_IN_SECONDS = 0.05;
+export const FADE_OUT_SECONDS = 0.01;
 /** Correction de niveau maximale d'un chunk vers le niveau médian du cours. */
 export const LEVEL_MAX_DB = 4;
 /** En dessous, l'écart ne s'entend pas : le chunk est laissé tel quel. */
@@ -20,11 +25,13 @@ const PCM = ["-ar", String(TTS_SAMPLE_RATE), "-ac", "1", "-c:a", "pcm_s16le"] as
  * comme un début. `volumedetect` écrit le niveau du résultat sur la sortie d'erreur.
  */
 export function trimSilenceArgs(input: string, output: string): string[] {
-  const edge = [
-    `silenceremove=start_periods=1:start_threshold=${TRIM_THRESHOLD_DB}dB:start_silence=${TRIM_KEEP_SECONDS}`,
-    `afade=t=in:d=${EDGE_FADE_SECONDS}`,
-  ].join(",");
-  return ["-i", input, "-af", `${edge},areverse,${edge},areverse,volumedetect`, ...PCM, output];
+  const edge = (fadeSeconds: number) =>
+    [
+      `silenceremove=start_periods=1:start_threshold=${TRIM_THRESHOLD_DB}dB:start_silence=${TRIM_KEEP_SECONDS}`,
+      `afade=t=in:d=${fadeSeconds}`,
+    ].join(",");
+  const filter = `${edge(FADE_IN_SECONDS)},areverse,${edge(FADE_OUT_SECONDS)},areverse,volumedetect`;
+  return ["-i", input, "-af", filter, ...PCM, output];
 }
 
 export type ChunkLevel = { meanDb: number; maxDb: number };
