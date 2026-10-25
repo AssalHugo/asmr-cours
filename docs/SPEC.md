@@ -499,7 +499,7 @@ const VerifyReport = z.object({
   |---|---|
   | pause < 600 ms | simple espace |
   | 600 à 999 ms | ` <short pause> ` |
-  | `breathBefore` | `<breath> ` en tête de segment |
+  | `breathBefore` | `<breath> ` en tête de segment, sauf le premier du chunk (après un silence, un souffle chuchoté sonne comme un « chut ») |
 
   Les balises restent **en anglais**, même pour un texte français.
 - `caption` = texte sans balises, pour les sous-titres.

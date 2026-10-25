@@ -137,6 +137,12 @@ describe("renderGeminiChunkText", () => {
     expect(text).toBe("Installe-toi. Respire. <short pause> <breath> On y va. <short pause> Fin.");
   });
 
+  it("ne met jamais <breath> en tête de chunk : il suivrait un silence", () => {
+    expect(renderGeminiChunkText([seg("Idée.", 400, true), seg("Suite.", 2000)])).toBe(
+      "Idée. Suite.",
+    );
+  });
+
   it("ne rend jamais la pause finale : c'est FFmpeg qui insère le silence", () => {
     expect(renderGeminiChunkText([seg("Seul.", 3000)])).toBe("Seul.");
   });
